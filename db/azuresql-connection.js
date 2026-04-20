@@ -6,7 +6,7 @@ require('dotenv').config();
 const sql = require('mssql');
 const crypto = require('crypto');
 
-// SHA-256 hash — matches other database versions
+// SHA-256 hash ï¿½ matches other database versions
 function hashPassword(password) {
   return crypto.createHash('sha256').update(password).digest('hex');
 }
@@ -19,7 +19,7 @@ const config = {
   password: process.env.AZURE_SQL_PASSWORD || '',
   port: parseInt(process.env.AZURE_SQL_PORT) || 1433,
   options: {
-    encrypt: process.env.AZURE_SQL_ENCRYPT === 'true',
+    encrypt: true,  // Azure SQL requires encryption
     trustServerCertificate: process.env.AZURE_SQL_TRUST_SERVER_CERTIFICATE === 'true',
     enableArithAbort: true,
     connectionTimeout: 30000,
@@ -66,7 +66,7 @@ async function executeQuery(sqlQuery, params = []) {
   }
 }
 
-/** Quick connectivity check — call on server start */
+/** Quick connectivity check ï¿½ call on server start */
 async function testConnection() {
   try {
     const pool = await getPool();
