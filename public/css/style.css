@@ -445,3 +445,20 @@ input::placeholder { color: var(--text-muted); }
   .card { padding: 24px 18px; }
   .question-text { font-size: 1.2rem; }
 }
+
+/* ── Skip button ───────────────────────────────────────────────────────── */
+#skip-btn:hover:not(:disabled) {
+  background: rgba(255,183,77,0.12);
+  border-color: var(--warning);
+}
+
+/* ── TTS button in solution panel ──────────────────────────────────────── */
+#tts-btn:hover:not(:disabled) {
+  opacity: 0.85;
+}
+
+/* ── Solution panel answer reveal ──────────────────────────────────────── */
+.solution-panel .solution-steps div {
+  padding: 2px 0;
+  line-height: 1.55;
+}

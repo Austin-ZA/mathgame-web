@@ -10,7 +10,9 @@ const { requireAuth } = require('../middleware/auth');
 router.use(requireAuth);
 
 // ── POST /api/game/start ───────────────────────────────────────────────────
-// Creates a new game session in the DB (mirrors SessionDAO.createSession)
+// FIX: Use OUTPUT INSERTED.session_id to get the new ID atomically.
+// The old two-step (INSERT then SCOPE_IDENTITY() in separate sqlcmd calls)
+// returned NULL because each execSync call runs in its own connection context.
 router.post('/start', async (req, res) => {
   const { mode, level } = req.body;
   const validModes = ['computational', 'algebra', 'binary'];
@@ -19,18 +21,12 @@ router.post('/start', async (req, res) => {
 
   const difficulty = mode === 'binary' ? 'level1' : `level${level || 1}`;
   try {
-    const { pool } = require('../db/connection');
-
-    // Insert session and get the new ID
-    await pool.query(
-      'INSERT INTO sessions (user_id, mode, difficulty) VALUES (?, ?, ?)',
+    const result = await pool.query(
+      'INSERT INTO sessions (user_id, mode, difficulty) OUTPUT INSERTED.session_id VALUES (?, ?, ?)',
       [req.session.user.user_id, mode, difficulty]
     );
-
-    // Get the last inserted ID
-    const result = await pool.query('SELECT SCOPE_IDENTITY() as sessionId');
-    const sessionId = result[0].sessionId;
-
+    const sessionId = result[0]?.session_id;
+    if (!sessionId) throw new Error('No session_id returned from INSERT');
     res.json({ sessionId });
   } catch (err) {
     console.error('[game] Start session error:', err.message);
@@ -51,16 +47,22 @@ router.get('/question', (req, res) => {
 });
 
 // ── POST /api/game/answer ──────────────────────────────────────────────────
-// Saves one answer and returns whether it was correct
+// FIX: isCorrect is now passed as boolean from the frontend (already evaluated).
+// The connection.js toSqlLiteral() converts true→1, false→0 for the BIT column.
+// Old version wrapped everything in quotes so 'true' failed the BIT insert.
 router.post('/answer', async (req, res) => {
-  const { sessionId, questionText, correctAnswer, studentAnswer, timeTaken } = req.body;
-  const isCorrect = correctAnswer?.trim().toLowerCase() === studentAnswer?.trim().toLowerCase();
+  const { sessionId, questionText, correctAnswer, studentAnswer, isCorrect, timeTaken } = req.body;
+  // Accept isCorrect from frontend (it already compared the strings),
+  // OR fall back to comparing here for backwards compat.
+  const correct = typeof isCorrect === 'boolean'
+    ? isCorrect
+    : correctAnswer?.trim().toLowerCase() === studentAnswer?.trim().toLowerCase();
   try {
     await pool.query(
       'INSERT INTO answers (session_id, question_text, correct_answer, student_answer, is_correct, time_taken_seconds) VALUES (?,?,?,?,?,?)',
-      [sessionId, questionText, correctAnswer, studentAnswer, isCorrect, timeTaken || 0]
+      [sessionId, questionText, correctAnswer, studentAnswer, correct, timeTaken || 0]
     );
-    res.json({ isCorrect, correctAnswer });
+    res.json({ isCorrect: correct, correctAnswer });
   } catch (err) {
     console.error('[game] Save answer error:', err.message);
     res.status(500).json({ error: 'Could not save answer.' });
@@ -68,13 +70,21 @@ router.post('/answer', async (req, res) => {
 });
 
 // ── POST /api/game/finish ──────────────────────────────────────────────────
-// Finalises the session (mirrors SessionDAO.finaliseSession)
+// Finalises the session — updates score, total_questions, correct_answers, time.
+// All values are integers so toSqlLiteral() keeps them unquoted → SQL Server accepts them.
 router.post('/finish', async (req, res) => {
   const { sessionId, score, totalQuestions, correctAnswers, timeTaken } = req.body;
   try {
     await pool.query(
       'UPDATE sessions SET score=?, total_questions=?, correct_answers=?, time_taken_seconds=? WHERE session_id=? AND user_id=?',
-      [score, totalQuestions, correctAnswers, timeTaken, sessionId, req.session.user.user_id]
+      [
+        parseInt(score)          || 0,
+        parseInt(totalQuestions) || 0,
+        parseInt(correctAnswers) || 0,
+        parseInt(timeTaken)      || 0,
+        sessionId,
+        req.session.user.user_id
+      ]
     );
     res.json({ success: true });
   } catch (err) {
@@ -84,10 +94,9 @@ router.post('/finish', async (req, res) => {
 });
 
 // ── GET /api/game/history ──────────────────────────────────────────────────
-// Returns session history for the logged-in user (mirrors SessionDAO.getSessionsByUser)
+// Returns last 20 sessions for the logged-in user
 router.get('/history', async (req, res) => {
   try {
-    const { pool } = require('../db/connection');
     const rows = await pool.query(
       'SELECT TOP 20 * FROM sessions WHERE user_id = ? ORDER BY played_at DESC',
       [req.session.user.user_id]

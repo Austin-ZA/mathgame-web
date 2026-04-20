@@ -2,6 +2,8 @@
 // Run: node server.js
 // Testers on the same network access it at: http://<YOUR_IP>:3000
 
+require('dotenv').config();
+
 const express        = require('express');
 const session        = require('express-session');
 const path           = require('path');
@@ -16,11 +18,11 @@ app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.use(session({
-  secret: 'mathgame-secret-key-change-in-production',
+  secret: process.env.SESSION_SECRET || 'mathgame-secret-key-change-in-production',
   resave: false,
   saveUninitialized: false,
   cookie: {
-    maxAge: 1000 * 60 * 60 * 8,  // 8 hours
+    maxAge: parseInt(process.env.SESSION_MAX_AGE) || 1000 * 60 * 60 * 8,  // 8 hours
     httpOnly: true,
   }
 }));
