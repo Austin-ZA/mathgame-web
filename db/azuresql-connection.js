@@ -21,10 +21,10 @@ const config = {
   options: {
     encrypt: true,  // Azure SQL requires encryption
     trustServerCertificate: process.env.AZURE_SQL_TRUST_SERVER_CERTIFICATE === 'true',
-    enableArithAbort: true,
-    connectionTimeout: 30000,
-    requestTimeout: 30000
+    enableArithAbort: true
   },
+  connectionTimeout: 30000,
+  requestTimeout: 30000,
   pool: {
     max: 10,
     min: 0,
@@ -75,10 +75,13 @@ async function testConnection() {
     console.log(`[DB] Database: ${result.recordset[0].db}`);
     return true;
   } catch (err) {
-    console.error('[DB] Azure SQL Connection failed:', err.message);
+    console.error('[DB] Azure SQL Connection failed:', err.code || err.name, err.message);
     console.error('[DB] Server:', config.server);
     console.error('[DB] Database:', config.database);
     console.error('[DB] User:', config.user);
+    console.error('[DB] Port:', config.port);
+    console.error('[DB] Encrypt:', config.options.encrypt);
+    console.error('[DB] TrustServerCertificate:', config.options.trustServerCertificate);
     return false;
   }
 }
