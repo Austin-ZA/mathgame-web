@@ -1,7 +1,7 @@
 // routes/educator.js
 const express = require('express');
 const router  = express.Router();
-const { pool } = require('../db/connection');
+const { pool } = require('../db');
 const { requireAuth } = require('../middleware/auth');
 
 router.use(requireAuth);

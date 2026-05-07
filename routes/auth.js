@@ -4,7 +4,7 @@
 const express = require('express');
 const router  = express.Router();
 const crypto  = require('crypto');
-const { pool } = require('../db/connection');
+const { pool } = require('../db');
 
 /** SHA-256 hash — exactly matches UserDAO.hashPassword() */
 function hashPassword(password) {
