@@ -16,7 +16,10 @@ Pages.landing = function(el, user) {
         <!-- Welcome banner -->
         <div class="card" style="margin-bottom:24px;background:linear-gradient(135deg,#1a1f5e,#2d2080)">
           <h2 style="margin-bottom:6px">Welcome back, ${user.full_name?.split(' ')[0] || user.username}! 🎉</h2>
-          <p class="muted">Ready to sharpen your math skills? Pick a mode and start playing.</p>
+          <p class="muted" style="margin-bottom:16px">Ready to sharpen your math skills? Pick a mode and start playing.</p>
+          <button class="btn btn-primary" id="coach-btn" style="width:auto;padding:10px 22px;background:linear-gradient(135deg,#7b2ff7,#4a1fa8)">
+            🤖 Ask AI Coach
+          </button>
         </div>
 
         <!-- Quick start -->
@@ -56,6 +59,7 @@ Pages.landing = function(el, user) {
   el.querySelector('#quick-alg').addEventListener('click',  () => App.showPage('modeSelect', { mode: 'algebra' }));
   el.querySelector('#quick-bin').addEventListener('click',  () => App.showPage('game', { mode: 'binary', level: 1 }));
   el.querySelector('#logout-btn').addEventListener('click', () => App.logout());
+  el.querySelector('#coach-btn').addEventListener('click',  () => App.showPage('coach'));
 
   // Load history
   loadHistory();

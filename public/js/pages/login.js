@@ -41,7 +41,7 @@ Pages.login = function(el) {
     try {
       const { user } = await API.login({ username, password });
       App.user = user;
-      App.showPage('landing');
+      App.routeByRole();
     } catch (e) {
       errorEl.textContent = e.message;
       loginBtn.disabled = false; loginBtn.textContent = 'Login';

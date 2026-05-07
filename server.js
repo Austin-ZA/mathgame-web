@@ -28,8 +28,11 @@ app.use(session({
 }));
 
 // ── API Routes ───────────────────────────────────────────────────────────
-app.use('/api/auth', require('./routes/auth'));
-app.use('/api/game', require('./routes/game'));
+app.use('/api/auth',     require('./routes/auth'));
+app.use('/api/game',     require('./routes/game'));
+app.use('/api/admin',    require('./routes/admin'));
+app.use('/api/educator', require('./routes/educator'));
+app.use('/api/coach',    require('./routes/coach'));
 
 // ── SPA Fallback — serve index.html for all non-API routes ───────────────
 app.get('*', (req, res) => {
@@ -41,11 +44,11 @@ app.get('*', (req, res) => {
 async function start() {
   const dbOk = await testConnection();
   if (!dbOk) {
-    console.error('\n❌  Cannot connect to MySQL.');
+    console.error('\n❌  Cannot connect to SQL Server.');
     console.error('   Please check:');
-    console.error('   1. MySQL Community Server is running');
+    console.error('   1. SQL Server / SQLEXPRESS is running');
     console.error('   2. Credentials in db/connection.js are correct');
-    console.error('   3. Database "mathgameapp" exists (run database/mathgameapp_schema.sql)');
+    console.error('   3. Database "mathgameapp" exists (run database/mathgameapp_schema_sqlserver.sql)');
     process.exit(1);
   }
 

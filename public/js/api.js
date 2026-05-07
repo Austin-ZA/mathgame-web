@@ -24,4 +24,26 @@ const API = {
   saveAnswer:   b  => API.post('/api/game/answer', b),
   finishSession:b  => API.post('/api/game/finish', b),
   getHistory:   () => API.get('/api/game/history'),
+
+  // Admin
+  adminGetStats:        () => API.get('/api/admin/stats'),
+  adminGetRecentUsers:  (n) => API.get(`/api/admin/users/recent?limit=${n}`),
+  adminGetAllUsers:     () => API.get('/api/admin/users'),
+  adminGetActivityLog:  () => API.get('/api/admin/activity'),
+  adminGetAccuracyByMode: () => API.get('/api/admin/accuracy-by-mode'),
+  adminGetAllSessions:  (n) => API.get(`/api/admin/sessions?limit=${n}`),
+  adminUpdateRole:      (uid, role) => API.post('/api/admin/users/role', { userId: uid, role }),
+  adminDeleteUser:      (uid) => API.post('/api/admin/users/delete', { userId: uid }),
+  adminGetQuestions:    (mode, level) => API.get(`/api/admin/questions?mode=${mode}&level=${level}`),
+  adminAddQuestion:     (b) => API.post('/api/admin/questions', b),
+  adminDeleteQuestion:  (qid) => API.post('/api/admin/questions/delete', { questionId: qid }),
+
+  // Educator
+  eduGetStats:          () => API.get('/api/educator/stats'),
+  eduGetStudents:       () => API.get('/api/educator/students'),
+  eduGetRecentSessions: (n) => API.get(`/api/educator/sessions?limit=${n}`),
+
+  // AI Coach
+  coachGetData:   ()  => API.get('/api/coach/data'),
+  coachAnalyse:   (q) => API.post('/api/coach/analyse', { question: q }),
 };
