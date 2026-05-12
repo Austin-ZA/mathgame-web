@@ -240,24 +240,20 @@ The student is asking: "${studentQuestion}"
 Respond as a warm, encouraging but direct maths tutor. Use specific numbers from the data. Be concrete — name the exact modes and levels they struggle with. Give 3–5 actionable recommendations. Keep your response under 350 words. Use simple formatting (no markdown headers, just short paragraphs or a brief numbered list where helpful). End with one motivational sentence.`;
 }
 
-// ── Anthropic API caller ───────────────────────────────────────────────────
+// ── Google Gemini API caller ───────────────────────────────────────────────
 function callClaude(prompt) {
   return new Promise((resolve, reject) => {
+    const apiKey = process.env.GEMINI_API_KEY || '';
     const body = JSON.stringify({
-      model: 'claude-sonnet-4-20250514',
-      max_tokens: 600,
-      messages: [{ role: 'user', content: prompt }],
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: { maxOutputTokens: 600 },
     });
 
     const options = {
-      hostname: 'api.anthropic.com',
-      path:     '/v1/messages',
+      hostname: 'generativelanguage.googleapis.com',
+      path:     `/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
       method:   'POST',
-      headers: {
-        'Content-Type':      'application/json',
-        'anthropic-version': '2023-06-01',
-        'x-api-key':         process.env.ANTHROPIC_API_KEY || '',
-      },
+      headers:  { 'Content-Type': 'application/json' },
     };
 
     const req = https.request(options, (apiRes) => {
@@ -266,11 +262,11 @@ function callClaude(prompt) {
       apiRes.on('end', () => {
         try {
           const parsed = JSON.parse(raw);
-          if (parsed.error) return reject(new Error(parsed.error.message || 'Anthropic API error'));
-          const text = (parsed.content || []).find(b => b.type === 'text')?.text || '';
+          if (parsed.error) return reject(new Error(parsed.error.message || 'Gemini API error'));
+          const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
           resolve(text);
         } catch (e) {
-          reject(new Error('Bad response from Anthropic API'));
+          reject(new Error('Bad response from Gemini API'));
         }
       });
     });

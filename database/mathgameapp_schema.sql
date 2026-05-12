@@ -139,11 +139,11 @@ GO
 IF NOT EXISTS (SELECT * FROM difficulty_level WHERE level_code='level1')
 BEGIN
     INSERT INTO difficulty_level (level_code, level_number, display_name, description, max_time_seconds, questions_per_session) VALUES
-        ('level1', 1, 'Level 1', 'Very easy — single digit operations',              90, 10),
-        ('level2', 2, 'Level 2', 'Easy — two digit operations',                       75, 10),
-        ('level3', 3, 'Level 3', 'Medium — multi-step problems',                     60, 10),
-        ('level4', 4, 'Level 4', 'Hard — complex expressions and larger numbers',    45, 12),
-        ('level5', 5, 'Level 5', 'Expert — advanced problems across all sub-topics', 30, 15);
+        ('level1', 1, 'Level 1', 'Very easy ï¿½ single digit operations',              90, 10),
+        ('level2', 2, 'Level 2', 'Easy ï¿½ two digit operations',                       75, 10),
+        ('level3', 3, 'Level 3', 'Medium ï¿½ multi-step problems',                     60, 10),
+        ('level4', 4, 'Level 4', 'Hard ï¿½ complex expressions and larger numbers',    45, 12),
+        ('level5', 5, 'Level 5', 'Expert ï¿½ advanced problems across all sub-topics', 30, 15);
 END
 GO
 
