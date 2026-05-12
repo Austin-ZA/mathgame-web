@@ -44,8 +44,8 @@ router.post('/analyse', async (req, res) => {
     const feedback = await callClaude(prompt);
     res.json({ feedback, data });
   } catch (err) {
-    console.error('[coach] analyse error:', err.message);
-    res.status(500).json({ error: 'AI coach is unavailable right now. Please try again.' });
+    console.error('[coach] analyse error:', err.message, err.stack);
+    res.status(500).json({ error: 'AI coach is unavailable right now. Please try again.', detail: err.message });
   }
 });
 
@@ -240,20 +240,27 @@ The student is asking: "${studentQuestion}"
 Respond as a warm, encouraging but direct maths tutor. Use specific numbers from the data. Be concrete — name the exact modes and levels they struggle with. Give 3–5 actionable recommendations. Keep your response under 350 words. Use simple formatting (no markdown headers, just short paragraphs or a brief numbered list where helpful). End with one motivational sentence.`;
 }
 
-// ── Google Gemini API caller ───────────────────────────────────────────────
+// ── Anthropic Claude API caller ────────────────────────────────────────────
 function callClaude(prompt) {
   return new Promise((resolve, reject) => {
-    const apiKey = process.env.GEMINI_API_KEY || '';
+    const apiKey = process.env.ANTHROPIC_API_KEY || '';
+    if (!apiKey) return reject(new Error('ANTHROPIC_API_KEY is not set in environment variables.'));
+
     const body = JSON.stringify({
-      contents: [{ parts: [{ text: prompt }] }],
-      generationConfig: { maxOutputTokens: 600 },
+      model: 'claude-sonnet-4-20250514',
+      max_tokens: 600,
+      messages: [{ role: 'user', content: prompt }],
     });
 
     const options = {
-      hostname: 'generativelanguage.googleapis.com',
-      path:     `/v1beta/models/gemini-2.0-flash:generateContent?key=${apiKey}`,
+      hostname: 'api.anthropic.com',
+      path:     '/v1/messages',
       method:   'POST',
-      headers:  { 'Content-Type': 'application/json' },
+      headers:  {
+        'Content-Type':      'application/json',
+        'x-api-key':         apiKey,
+        'anthropic-version': '2023-06-01',
+      },
     };
 
     const req = https.request(options, (apiRes) => {
@@ -262,16 +269,17 @@ function callClaude(prompt) {
       apiRes.on('end', () => {
         try {
           const parsed = JSON.parse(raw);
-          if (parsed.error) return reject(new Error(parsed.error.message || 'Gemini API error'));
-          const text = parsed.candidates?.[0]?.content?.parts?.[0]?.text || '';
+          if (parsed.error) return reject(new Error(parsed.error.message || 'Anthropic API error'));
+          const text = parsed.content?.[0]?.text || '';
+          if (!text) return reject(new Error('Empty response from Anthropic API'));
           resolve(text);
         } catch (e) {
-          reject(new Error('Bad response from Gemini API'));
+          reject(new Error('Bad JSON response from Anthropic API: ' + e.message));
         }
       });
     });
 
-    req.on('error', reject);
+    req.on('error', (e) => reject(new Error('Network error calling Anthropic API: ' + e.message)));
     req.write(body);
     req.end();
   });
