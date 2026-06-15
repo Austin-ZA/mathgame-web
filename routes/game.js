@@ -51,16 +51,14 @@ router.get('/question', (req, res) => {
 // The connection.js toSqlLiteral() converts true→1, false→0 for the BIT column.
 // Old version wrapped everything in quotes so 'true' failed the BIT insert.
 router.post('/answer', async (req, res) => {
-  const { sessionId, questionText, correctAnswer, studentAnswer, isCorrect, timeTaken } = req.body;
-  // Accept isCorrect from frontend (it already compared the strings),
-  // OR fall back to comparing here for backwards compat.
+  const { sessionId, questionNumber, questionText, correctAnswer, studentAnswer, isCorrect, timeTaken } = req.body;
   const correct = typeof isCorrect === 'boolean'
     ? isCorrect
     : correctAnswer?.trim().toLowerCase() === studentAnswer?.trim().toLowerCase();
   try {
     await pool.query(
-      'INSERT INTO answers (session_id, question_text, correct_answer, student_answer, is_correct, time_taken_seconds) VALUES (?,?,?,?,?,?)',
-      [sessionId, questionText, correctAnswer, studentAnswer, correct, timeTaken || 0]
+      'INSERT INTO answers (session_id, question_number, question_text, correct_answer, student_answer, is_correct, time_taken_seconds) VALUES (?,?,?,?,?,?,?)',
+      [sessionId, questionNumber || 0, questionText, correctAnswer, studentAnswer, correct, timeTaken || 0]
     );
     res.json({ isCorrect: correct, correctAnswer });
   } catch (err) {
@@ -96,14 +94,31 @@ router.post('/finish', async (req, res) => {
 // ── GET /api/game/history ──────────────────────────────────────────────────
 // Returns last 20 sessions for the logged-in user
 router.get('/history', async (req, res) => {
+  const days = parseInt(req.query.days) || 7;
   try {
     const rows = await pool.query(
-      'SELECT TOP 20 * FROM sessions WHERE user_id = ? ORDER BY played_at DESC',
-      [req.session.user.user_id]
+      'SELECT TOP 100 * FROM sessions WHERE user_id = ? AND played_at >= DATEADD(day, -?, GETDATE()) ORDER BY played_at DESC',
+      [req.session.user.user_id, days]
     );
     res.json(rows);
   } catch (err) {
     res.status(500).json({ error: 'Could not fetch history.' });
+  }
+});
+
+// ── GET /api/game/session/:id ───────────────────────────────────────────────
+// Returns session info and answers for a given session
+router.get('/session/:id', async (req, res) => {
+  const sessionId = req.params.id;
+  try {
+    const sessions = await pool.query('SELECT * FROM sessions WHERE session_id = ? AND user_id = ?', [sessionId, req.session.user.user_id]);
+    if (!sessions || sessions.length === 0) return res.status(404).json({ error: 'Session not found.' });
+    const session = sessions[0];
+    const answers = await pool.query('SELECT * FROM answers WHERE session_id = ? ORDER BY question_number, answer_id', [sessionId]);
+    res.json({ session, answers });
+  } catch (err) {
+    console.error('[game] Get session error:', err.message);
+    res.status(500).json({ error: 'Could not fetch session details.' });
   }
 });
 

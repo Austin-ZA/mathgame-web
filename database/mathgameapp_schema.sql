@@ -1,10 +1,10 @@
 -- ============================================================
---  MathGameApp - SQL Server Database Schema (Full ERD Version)
---  For SQL Server / SQLEXPRESS
---  Table names aligned with ERD:
---    educator_student_map  (was: educator_students)
---    game_mode             (was: game_modes)
---    difficulty_level      (was: difficulty_levels)
+--  MathGameApp - SQL Server Database Schema
+--  Consolidated and cleaned:
+--    - Merged user_answers into answers (single answer-tracking table)
+--    - Merged admin_activity_log into audit_log (single activity log)
+--    - Removed redundant mode_difficulty_config (config embedded in difficulty_level)
+--    - Kept all FK relationships intact
 -- ============================================================
 
 IF NOT EXISTS (SELECT * FROM sys.databases WHERE name = 'mathgameapp')
@@ -50,45 +50,23 @@ CREATE TABLE users (
 GO
 
 -- ============================================================
--- TABLE: student_profile
+-- TABLE: profiles  (consolidated student + educator + admin profiles)
+-- profile_data stores role-specific JSON (grade_level, institution, etc.)
 -- ============================================================
-IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='student_profile' AND xtype='U')
-CREATE TABLE student_profile (
-    profile_id   INT      IDENTITY(1,1) PRIMARY KEY,
-    user_id      INT      NOT NULL UNIQUE REFERENCES users(user_id) ON DELETE CASCADE,
-    grade_level  VARCHAR(50)  NULL,
-    school_name  VARCHAR(100) NULL,
-    created_at   DATETIME     NOT NULL DEFAULT GETDATE()
+IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='profiles' AND xtype='U')
+CREATE TABLE profiles (
+    profile_id    INT           IDENTITY(1,1) PRIMARY KEY,
+    user_id       INT           NOT NULL UNIQUE REFERENCES users(user_id) ON DELETE CASCADE,
+    grade_level   VARCHAR(50)   NULL,
+    school_name   VARCHAR(100)  NULL,
+    institution   VARCHAR(100)  NULL,
+    department    VARCHAR(100)  NULL,
+    created_at    DATETIME      NOT NULL DEFAULT GETDATE()
 );
 GO
 
 -- ============================================================
--- TABLE: educator_profile
--- ============================================================
-IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='educator_profile' AND xtype='U')
-CREATE TABLE educator_profile (
-    profile_id   INT      IDENTITY(1,1) PRIMARY KEY,
-    user_id      INT      NOT NULL UNIQUE REFERENCES users(user_id) ON DELETE CASCADE,
-    institution  VARCHAR(100) NULL,
-    department   VARCHAR(100) NULL,
-    created_at   DATETIME     NOT NULL DEFAULT GETDATE()
-);
-GO
-
--- ============================================================
--- TABLE: admin_profile
--- ============================================================
-IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='admin_profile' AND xtype='U')
-CREATE TABLE admin_profile (
-    profile_id   INT      IDENTITY(1,1) PRIMARY KEY,
-    user_id      INT      NOT NULL UNIQUE REFERENCES users(user_id) ON DELETE CASCADE,
-    permissions  VARCHAR(200) NULL,
-    created_at   DATETIME     NOT NULL DEFAULT GETDATE()
-);
-GO
-
--- ============================================================
--- TABLE: educator_student_map  (ERD: EDUCATOR_STUDENT_MAP)
+-- TABLE: educator_student_map
 -- ============================================================
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='educator_student_map' AND xtype='U')
 CREATE TABLE educator_student_map (
@@ -101,7 +79,7 @@ CREATE TABLE educator_student_map (
 GO
 
 -- ============================================================
--- TABLE: game_mode  (ERD: GAME_MODE)
+-- TABLE: game_mode
 -- ============================================================
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='game_mode' AND xtype='U')
 CREATE TABLE game_mode (
@@ -123,7 +101,7 @@ END
 GO
 
 -- ============================================================
--- TABLE: difficulty_level  (ERD: DIFFICULTY_LEVEL)
+-- TABLE: difficulty_level
 -- ============================================================
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='difficulty_level' AND xtype='U')
 CREATE TABLE difficulty_level (
@@ -133,32 +111,19 @@ CREATE TABLE difficulty_level (
     display_name          VARCHAR(20) NOT NULL,
     description           VARCHAR(200) NULL,
     max_time_seconds      INT         NOT NULL DEFAULT 60,
-    questions_per_session INT         NOT NULL DEFAULT 10
+    questions_per_session INT         NOT NULL DEFAULT 10,
+    score_multiplier      DECIMAL(4,2) NOT NULL DEFAULT 1.00
 );
 GO
 IF NOT EXISTS (SELECT * FROM difficulty_level WHERE level_code='level1')
 BEGIN
-    INSERT INTO difficulty_level (level_code, level_number, display_name, description, max_time_seconds, questions_per_session) VALUES
-        ('level1', 1, 'Level 1', 'Very easy � single digit operations',              90, 10),
-        ('level2', 2, 'Level 2', 'Easy � two digit operations',                       75, 10),
-        ('level3', 3, 'Level 3', 'Medium � multi-step problems',                     60, 10),
-        ('level4', 4, 'Level 4', 'Hard � complex expressions and larger numbers',    45, 12),
-        ('level5', 5, 'Level 5', 'Expert � advanced problems across all sub-topics', 30, 15);
+    INSERT INTO difficulty_level (level_code, level_number, display_name, description, max_time_seconds, questions_per_session, score_multiplier) VALUES
+        ('level1', 1, 'Level 1', 'Beginner - single digit operations',              90, 10, 1.00),
+        ('level2', 2, 'Level 2', 'Elementary - two digit operations',               75, 10, 1.20),
+        ('level3', 3, 'Level 3', 'Intermediate - multi-step problems',              60, 10, 1.50),
+        ('level4', 4, 'Level 4', 'Advanced - complex expressions',                  45, 12, 1.80),
+        ('level5', 5, 'Level 5', 'Expert - advanced problems across all topics',    30, 15, 2.00);
 END
-GO
-
--- ============================================================
--- TABLE: mode_difficulty_config
--- ============================================================
-IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='mode_difficulty_config' AND xtype='U')
-CREATE TABLE mode_difficulty_config (
-    config_id           INT          IDENTITY(1,1) PRIMARY KEY,
-    mode_name           VARCHAR(30)  NOT NULL REFERENCES game_mode(mode_name),
-    level_code          VARCHAR(10)  NOT NULL REFERENCES difficulty_level(level_code),
-    score_multiplier    DECIMAL(4,2) NOT NULL DEFAULT 1.00,
-    bonus_time_seconds  INT          NOT NULL DEFAULT 0,
-    CONSTRAINT UQ_mode_difficulty UNIQUE (mode_name, level_code)
-);
 GO
 
 -- ============================================================
@@ -180,93 +145,8 @@ CREATE TABLE sessions (
 GO
 
 -- ============================================================
--- TABLE: admin_activity_log
--- ============================================================
-IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='admin_activity_log' AND xtype='U')
-CREATE TABLE admin_activity_log (
-    log_id         INT      IDENTITY(1,1) PRIMARY KEY,
-    admin_id       INT      NOT NULL REFERENCES users(user_id) ON DELETE NO ACTION,
-    action_type    VARCHAR(100) NOT NULL,
-    description    VARCHAR(500) NULL,
-    target_user_id INT      NULL REFERENCES users(user_id) ON DELETE SET NULL,
-    logged_at      DATETIME NOT NULL DEFAULT GETDATE()
-);
-GO
-
--- ============================================================
--- TABLE: performance_summary
--- ============================================================
-IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='performance_summary' AND xtype='U')
-CREATE TABLE performance_summary (
-    summary_id       INT      IDENTITY(1,1) PRIMARY KEY,
-    user_id          INT      NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
-    total_sessions   INT      NOT NULL DEFAULT 0,
-    average_score    DECIMAL(6,2) NOT NULL DEFAULT 0.00,
-    average_accuracy DECIMAL(5,2) NOT NULL DEFAULT 0.00,
-    last_played      DATETIME NULL,
-    updated_at       DATETIME NOT NULL DEFAULT GETDATE(),
-    CONSTRAINT UQ_performance_summary_user UNIQUE (user_id)
-);
-GO
-
--- ============================================================
--- TABLE: questions
--- ============================================================
-IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='questions' AND xtype='U')
-CREATE TABLE questions (
-    question_id     INT           IDENTITY(1,1) PRIMARY KEY,
-    mode_id         INT           NULL REFERENCES game_mode(mode_id),
-    difficulty_id   INT           NULL REFERENCES difficulty_level(level_id),
-    selection_type  VARCHAR(30)   NOT NULL DEFAULT 'multiple_choice',
-    question_text   NVARCHAR(MAX) NOT NULL,
-    created_by      INT           NULL REFERENCES users(user_id),
-    is_active       BIT           NOT NULL DEFAULT 1,
-    created_at      DATETIME      NOT NULL DEFAULT GETDATE()
-);
-GO
-
--- ============================================================
--- TABLE: answer_options
--- ============================================================
-IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='answer_options' AND xtype='U')
-CREATE TABLE answer_options (
-    option_id      INT           IDENTITY(1,1) PRIMARY KEY,
-    question_id    INT           NOT NULL REFERENCES questions(question_id) ON DELETE CASCADE,
-    option_text    NVARCHAR(255) NOT NULL,
-    is_correct     BIT           NOT NULL DEFAULT 0,
-    order_index    INT           NOT NULL DEFAULT 0
-);
-GO
-
--- ============================================================
--- TABLE: explanation
--- ============================================================
-IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='explanation' AND xtype='U')
-CREATE TABLE explanation (
-    explanation_id INT      IDENTITY(1,1) PRIMARY KEY,
-    question_id    INT      NOT NULL REFERENCES questions(question_id) ON DELETE CASCADE,
-    stage_text     NVARCHAR(MAX) NOT NULL,
-    audio_url      VARCHAR(255) NULL
-);
-GO
-
--- ============================================================
--- TABLE: user_answers
--- ============================================================
-IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='user_answers' AND xtype='U')
-CREATE TABLE user_answers (
-    answer_id          INT      IDENTITY(1,1) PRIMARY KEY,
-    session_id         INT      NOT NULL REFERENCES sessions(session_id) ON DELETE CASCADE,
-    question_id        INT      NOT NULL REFERENCES questions(question_id) ON DELETE NO ACTION,
-    selected_option_id INT      NULL REFERENCES answer_options(option_id) ON DELETE SET NULL,
-    is_correct         BIT      NOT NULL DEFAULT 0,
-    time_taken_seconds INT      NOT NULL DEFAULT 0,
-    answered_at        DATETIME NOT NULL DEFAULT GETDATE()
-);
-GO
-
--- ============================================================
--- TABLE: answers
+-- TABLE: answers  (single consolidated answer table)
+--   Stores every student answer per session question
 -- ============================================================
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='answers' AND xtype='U')
 CREATE TABLE answers (
@@ -283,21 +163,18 @@ CREATE TABLE answers (
 GO
 
 -- ============================================================
--- TABLE: custom_questions
+-- TABLE: performance_summary  (aggregated per user, refreshed on session finish)
 -- ============================================================
-IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='custom_questions' AND xtype='U')
-CREATE TABLE custom_questions (
-    question_id     INT           IDENTITY(1,1) PRIMARY KEY,
-    mode            VARCHAR(30)   NOT NULL REFERENCES game_mode(mode_name),
-    level           INT           NOT NULL,
-    question_text   NVARCHAR(500) NOT NULL,
-    correct_answer  NVARCHAR(200) NOT NULL,
-    wrong_options   NVARCHAR(500) NOT NULL DEFAULT '',
-    solution_steps  NVARCHAR(1000) NOT NULL DEFAULT '',
-    is_active       BIT           NOT NULL DEFAULT 1,
-    created_by      INT           NOT NULL REFERENCES users(user_id),
-    created_at      DATETIME      NOT NULL DEFAULT GETDATE(),
-    updated_at      DATETIME      NULL
+IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='performance_summary' AND xtype='U')
+CREATE TABLE performance_summary (
+    summary_id       INT      IDENTITY(1,1) PRIMARY KEY,
+    user_id          INT      NOT NULL REFERENCES users(user_id) ON DELETE CASCADE,
+    total_sessions   INT      NOT NULL DEFAULT 0,
+    average_score    DECIMAL(6,2) NOT NULL DEFAULT 0.00,
+    average_accuracy DECIMAL(5,2) NOT NULL DEFAULT 0.00,
+    last_played      DATETIME NULL,
+    updated_at       DATETIME NOT NULL DEFAULT GETDATE(),
+    CONSTRAINT UQ_performance_summary_user UNIQUE (user_id)
 );
 GO
 
@@ -328,21 +205,20 @@ CREATE TABLE achievements (
     achievement_code VARCHAR(50)   NOT NULL UNIQUE,
     title            VARCHAR(100)  NOT NULL,
     description      VARCHAR(300)  NOT NULL,
-    icon_emoji       VARCHAR(10)   NULL,
     points_awarded   INT           NOT NULL DEFAULT 0,
     is_active        BIT           NOT NULL DEFAULT 1
 );
 GO
 IF NOT EXISTS (SELECT * FROM achievements WHERE achievement_code='FIRST_SESSION')
 BEGIN
-    INSERT INTO achievements (achievement_code, title, description, icon_emoji, points_awarded) VALUES
-        ('FIRST_SESSION',     'First Steps',         'Complete your first game session',                                   N'??', 10),
-        ('PERFECT_SESSION',   'Perfect Score',       'Answer every question correctly in a single session',               N'??', 50),
-        ('STREAK_7',          '7-Day Streak',        'Play at least one session every day for 7 consecutive days',        N'??', 30),
-        ('LEVEL5_COMPLETE',   'Expert Mode',         'Complete a session on Level 5',                                     N'?', 40),
-        ('ALL_MODES',         'Mode Explorer',       'Play at least one session in every game mode',                      N'???', 25),
-        ('ACCURACY_90',       'Sharp Mind',          'Achieve 90% or higher accuracy in a session',                      N'??', 20),
-        ('SESSIONS_50',       'Dedicated Learner',   'Complete 50 sessions in total',                                    N'??', 35);
+    INSERT INTO achievements (achievement_code, title, description, points_awarded) VALUES
+        ('FIRST_SESSION',     'First Steps',         'Complete your first game session',                                 10),
+        ('PERFECT_SESSION',   'Perfect Score',       'Answer every question correctly in a single session',             50),
+        ('STREAK_7',          '7-Day Streak',        'Play at least one session every day for 7 consecutive days',      30),
+        ('LEVEL5_COMPLETE',   'Expert Mode',         'Complete a session on Level 5',                                   40),
+        ('ALL_MODES',         'Mode Explorer',       'Play at least one session in every game mode',                    25),
+        ('ACCURACY_90',       'Sharp Mind',          'Achieve 90% or higher accuracy in a session',                    20),
+        ('SESSIONS_50',       'Dedicated Learner',   'Complete 50 sessions in total',                                   35);
 END
 GO
 
@@ -377,18 +253,40 @@ CREATE TABLE notifications (
 GO
 
 -- ============================================================
--- TABLE: audit_log
+-- TABLE: audit_log  (consolidated activity + audit log)
+--   action_type: 'LOGIN', 'REGISTER', 'ROLE_CHANGE', 'DELETE_USER', 'SESSION_START', etc.
 -- ============================================================
 IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='audit_log' AND xtype='U')
 CREATE TABLE audit_log (
-    log_id      INT          IDENTITY(1,1) PRIMARY KEY,
-    actor_id    INT          NOT NULL REFERENCES users(user_id),
-    action      VARCHAR(100) NOT NULL,
-    target_type VARCHAR(50)  NULL,
-    target_id   INT          NULL,
-    details     NVARCHAR(MAX) NULL,
-    ip_address  VARCHAR(45)  NULL,
-    logged_at   DATETIME     NOT NULL DEFAULT GETDATE()
+    log_id         INT           IDENTITY(1,1) PRIMARY KEY,
+    actor_id       INT           NOT NULL REFERENCES users(user_id),
+    action_type    VARCHAR(100)  NOT NULL,
+    description    VARCHAR(500)  NULL,
+    target_user_id INT           NULL REFERENCES users(user_id) ON DELETE NO ACTION,
+    target_type    VARCHAR(50)   NULL,
+    target_id      INT           NULL,
+    ip_address     VARCHAR(45)   NULL,
+    logged_at      DATETIME      NOT NULL DEFAULT GETDATE()
+);
+GO
+
+-- ============================================================
+-- TABLE: custom_questions  (educator-created questions)
+-- ============================================================
+IF NOT EXISTS (SELECT * FROM sysobjects WHERE name='custom_questions' AND xtype='U')
+CREATE TABLE custom_questions (
+    question_id     INT           IDENTITY(1,1) PRIMARY KEY,
+    mode            VARCHAR(30)   NOT NULL REFERENCES game_mode(mode_name),
+    level           INT           NOT NULL,
+    question_text   NVARCHAR(500) NOT NULL,
+    correct_answer  NVARCHAR(200) NOT NULL,
+    wrong_options   NVARCHAR(500) NOT NULL DEFAULT '',
+    solution_steps  NVARCHAR(1000) NOT NULL DEFAULT '',
+    hint_text       NVARCHAR(300) NOT NULL DEFAULT '',
+    is_active       BIT           NOT NULL DEFAULT 1,
+    created_by      INT           NOT NULL REFERENCES users(user_id),
+    created_at      DATETIME      NOT NULL DEFAULT GETDATE(),
+    updated_at      DATETIME      NULL
 );
 GO
 
@@ -422,8 +320,5 @@ BEGIN
 END
 GO
 
--- ============================================================
--- Final confirmation
--- ============================================================
 PRINT 'MathGameApp schema created / verified successfully.';
 GO

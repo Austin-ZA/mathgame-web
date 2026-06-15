@@ -17,6 +17,7 @@
     "mysql2": "^3.6.5"
   },
   "devDependencies": {
+    "@mermaid-js/mermaid-cli": "^10.4.0",
     "eslint": "^10.2.1"
   }
 }

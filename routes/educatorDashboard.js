@@ -4,7 +4,7 @@ Pages.educatorDashboard = function(el) {
   el.innerHTML = `
     <div class="page-wide">
       <nav class="navbar">
-        <span class="navbar-brand"> MathGameApp</span>
+        <span class="navbar-brand">📐 MathGameApp</span>
         <span class="navbar-user" id="edu-name-nav"></span>
         <div class="navbar-actions">
           <button class="btn btn-secondary btn-sm" id="edu-logout-btn">Logout</button>
@@ -16,9 +16,9 @@ Pages.educatorDashboard = function(el) {
         <!-- Sidebar -->
         <aside class="dash-sidebar">
           <div class="sidebar-section-label">Navigation</div>
-          <button class="sidebar-item active" data-tab="overview"> Overview</button>
-          <button class="sidebar-item" data-tab="students"> My Students</button>
-          <button class="sidebar-item" data-tab="reports"> Reports</button>
+          <button class="sidebar-item active" data-tab="overview">📊 Overview</button>
+          <button class="sidebar-item" data-tab="students">🎓 My Students</button>
+          <button class="sidebar-item" data-tab="reports">📈 Reports</button>
           <div class="sidebar-section-label" style="margin-top:24px">Role</div>
           <div style="padding:8px 12px">
             <span class="role-badge role-educator">Educator</span>
@@ -33,7 +33,7 @@ Pages.educatorDashboard = function(el) {
       </div>
     </div>`;
 
-  el.querySelector('#edu-name-nav').textContent = ' ' + (App.user.full_name || App.user.username);
+  el.querySelector('#edu-name-nav').textContent = '👋 ' + (App.user.full_name || App.user.username);
   el.querySelector('#edu-logout-btn').addEventListener('click', () => App.logout());
 
   const sidebar = el.querySelectorAll('.sidebar-item');
@@ -57,7 +57,7 @@ Pages.educatorDashboard = function(el) {
     }
   }
 
-  //  Overview tab 
+  // ── Overview tab ────────────────────────────────────────────────────────
   async function renderOverview(main) {
     try {
       const [stats, students] = await Promise.all([
@@ -65,7 +65,14 @@ Pages.educatorDashboard = function(el) {
         API.eduGetStudents()
       ]);
 
-      const struggling = students.filter(s => typeof s.avg_accuracy === 'number' && s.avg_accuracy < 50);
+      const struggling = students.filter(s => {
+        const acc = typeof s.avg_accuracy === 'number' ? s.avg_accuracy : null;
+        if (acc === null) return false;
+        // Hard threshold: below 50% overall, or below 60% on lower levels (expected to be easier)
+        if (acc < 50) return true;
+        if (s.preferred_level && parseInt(s.preferred_level) <= 2 && acc < 60) return true;
+        return false;
+      });
       const inactive   = students.filter(s => typeof s.days_inactive === 'number' && s.days_inactive >= 7);
 
       main.innerHTML = `
@@ -134,7 +141,7 @@ Pages.educatorDashboard = function(el) {
           <div class="dash-panel">
             <div class="panel-title">Alerts</div>
             ${struggling.length === 0 && inactive.length === 0
-              ? `<p style="color:var(--success);padding:8px 0"> All students are on track!</p>`
+              ? `<p style="color:var(--success);padding:8px 0">✅ All students are on track!</p>`
               : [
                   ...inactive.map(s => `
                     <div class="log-item">
@@ -175,7 +182,7 @@ Pages.educatorDashboard = function(el) {
       </div>`;
   }
 
-  //  Students tab 
+  // ── Students tab ────────────────────────────────────────────────────────
   async function renderStudents(main) {
     try {
       const students = await API.eduGetStudents();
@@ -251,7 +258,7 @@ Pages.educatorDashboard = function(el) {
       </tr>`;
     }).join('');  }
 
-  //  Reports tab 
+  // ── Reports tab ─────────────────────────────────────────────────────────
   async function renderReports(main) {
     main.innerHTML = `
       <div class="tab-header">
@@ -262,8 +269,8 @@ Pages.educatorDashboard = function(el) {
         <div class="dash-panel">
           <div class="panel-title">Exports</div>
           <div class="stack" style="gap:10px">
-            <button class="btn btn-secondary" id="exp-class"> Class performance report (CSV)</button>
-            <button class="btn btn-secondary" id="exp-students"> Individual student data (CSV)</button>
+            <button class="btn btn-secondary" id="exp-class">📥 Class performance report (CSV)</button>
+            <button class="btn btn-secondary" id="exp-students">📥 Individual student data (CSV)</button>
           </div>
         </div>
         <div class="dash-panel">
@@ -291,7 +298,7 @@ Pages.educatorDashboard = function(el) {
       topEl.innerHTML = sorted.map((s,i) => `
         <div class="user-row-item">
           <div class="avatar-circle" style="background:${['rgba(91,106,245,.3)','rgba(76,175,130,.3)','rgba(255,183,77,.3)','rgba(255,107,157,.3)'][i]}">
-            ${['','','','4⃣'][i]}
+            ${['🥇','🥈','🥉','4️⃣'][i]}
           </div>
           <div class="user-row-info">
             <span class="user-row-name">${s.full_name || s.username}</span>
@@ -325,7 +332,7 @@ Pages.educatorDashboard = function(el) {
     }
   }
 
-  //  Helpers 
+  // ── Helpers ─────────────────────────────────────────────────────────────
   function initials(name) {
     if (!name) return "?";
     return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);

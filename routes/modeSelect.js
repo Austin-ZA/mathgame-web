@@ -1,14 +1,14 @@
 // public/js/pages/modeSelect.js
 
 Pages.modeSelect = function(el, params = {}) {
-  let selectedMode  = params.mode || null;
-  let selectedLevel = params.level || 1;
+  let selectedMode  = params.preselect || null;
+  let selectedLevel = 1;
 
   el.innerHTML = `
     <div class="page-wide">
       <nav class="navbar">
-        <button class="btn btn-secondary btn-sm" id="back-btn">Back</button>
-        <span class="navbar-brand">MathGameApp</span>
+        <button class="btn btn-secondary btn-sm" id="back-btn">← Back</button>
+        <span class="navbar-brand">📐 MathGameApp</span>
         <span></span>
       </nav>
 
@@ -17,17 +17,23 @@ Pages.modeSelect = function(el, params = {}) {
         <p class="muted" style="margin-bottom:4px">Select your game mode and difficulty level</p>
 
         <div class="mode-grid" style="margin-top:20px" id="mode-grid">
-          <div class="mode-card" data-mode="computational" title="Hands-on arithmetic & algebraic computations with fractions, decimals and PEMDAS.">
+          <div class="mode-card" data-mode="computational">
+            <div class="mode-tooltip-hover">Tackle PEMDAS, fractions, decimals and arithmetic</div>
+            <span class="mode-icon">🔢</span>
             <h3>Computational Maths</h3>
             <p>PEMDAS, fractions, decimals and more across 5 levels</p>
           </div>
-          <div class="mode-card" data-mode="algebra" title="Solve equations, work with variables, substitution and quadratics.">
+          <div class="mode-card" data-mode="algebra">
+            <div class="mode-tooltip-hover">Solve linear equations, substitution and quadratics</div>
+            <span class="mode-icon">🔡</span>
             <h3>Algebra</h3>
             <p>Linear equations, substitution and quadratics</p>
           </div>
-          <div class="mode-card" data-mode="binary" title="Convert between decimal, binary and hexadecimal numbers.">
+          <div class="mode-card" data-mode="binary">
+            <div class="mode-tooltip-hover">Convert between decimal, binary and hexadecimal systems</div>
+            <span class="mode-icon">💾</span>
             <h3>Binary Conversion</h3>
-            <p>Decimal to Binary to Hexadecimal</p>
+            <p>Decimal ↔ Binary ↔ Hexadecimal</p>
           </div>
         </div>
 
@@ -48,7 +54,7 @@ Pages.modeSelect = function(el, params = {}) {
         <div id="start-section" style="display:none;margin-top:28px">
           <div class="sep"></div>
           <button class="btn btn-primary" id="start-btn" style="max-width:300px;margin:0 auto">
-            Start Game
+            ▶ Start Game
           </button>
         </div>
 
@@ -61,29 +67,30 @@ Pages.modeSelect = function(el, params = {}) {
 
   el.querySelector('#back-btn').addEventListener('click', () => App.showPage('landing'));
 
+  // Mode selection
   el.querySelectorAll('.mode-card').forEach(card => {
-    card.addEventListener('click', () => selectMode(card.dataset.mode));
+    card.addEventListener('click', () => {
+      el.querySelectorAll('.mode-card').forEach(c => {
+        c.style.borderColor = '';
+        c.classList.remove('mode-selected');
+      });
+      card.style.borderColor = 'var(--primary-light)';
+      card.classList.add('mode-selected');
+      selectedMode = card.dataset.mode;
+
+      const levelSection = el.querySelector('#level-section');
+      const startSection = el.querySelector('#start-section');
+
+      if (selectedMode === 'binary') {
+        levelSection.style.display = 'none';
+      } else {
+        levelSection.style.display = 'block';
+      }
+      startSection.style.display = 'block';
+    });
   });
 
-  function selectMode(mode) {
-    el.querySelectorAll('.mode-card').forEach(c => c.style.borderColor = '');
-    const card = el.querySelector(`.mode-card[data-mode="${mode}"]`);
-    if (card) card.style.borderColor = 'var(--primary-light)';
-    selectedMode = mode;
-    const levelSection = el.querySelector('#level-section');
-    const startSection = el.querySelector('#start-section');
-    if (selectedMode === 'binary') {
-      levelSection.style.display = 'none';
-    } else {
-      levelSection.style.display = 'block';
-      // ensure level buttons reflect selectedLevel
-      el.querySelectorAll('.level-btn').forEach(b => b.classList.remove('selected'));
-      const sel = el.querySelector(`.level-btn[data-level="${selectedLevel}"]`);
-      if (sel) sel.classList.add('selected');
-    }
-    startSection.style.display = 'block';
-  }
-
+  // Level selection
   el.querySelectorAll('.level-btn').forEach(btn => {
     btn.addEventListener('click', () => {
       el.querySelectorAll('.level-btn').forEach(b => b.classList.remove('selected'));
@@ -92,13 +99,17 @@ Pages.modeSelect = function(el, params = {}) {
     });
   });
 
+  // Start game
   el.querySelector('#start-btn').addEventListener('click', () => {
     if (!selectedMode) return;
     App.showPage('game', { mode: selectedMode, level: selectedLevel });
   });
 
-  // If params provided with a mode, preselect it
-  if (params.mode) {
-    selectMode(params.mode);
+  // Auto-preselect if coming from landing quick-start
+  if (params.preselect) {
+    const card = el.querySelector(`[data-mode="${params.preselect}"]`);
+    if (card) {
+      setTimeout(() => card.click(), 50);
+    }
   }
 };

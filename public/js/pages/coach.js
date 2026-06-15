@@ -4,8 +4,8 @@ Pages.coach = function(el) {
   el.innerHTML = `
     <div class="page-wide">
       <nav class="navbar">
-        <span class="navbar-brand">📐 MathGameApp</span>
-        <span class="navbar-user">🤖 AI Coach</span>
+        <span class="navbar-brand"> MathGameApp</span>
+        <span class="navbar-user"> AI Coach</span>
         <div class="navbar-actions">
           <button class="btn btn-secondary btn-sm" id="coach-back-btn">← Back</button>
           <button class="btn btn-secondary btn-sm" id="coach-logout-btn">Logout</button>
@@ -17,7 +17,7 @@ Pages.coach = function(el) {
         <!-- Header -->
         <div class="card" style="margin-bottom:24px;background:linear-gradient(135deg,#1a1f5e,#2d2080);padding:28px 32px">
           <div style="display:flex;align-items:center;gap:16px">
-            <span style="font-size:3rem">🤖</span>
+            <span style="font-size:3rem"></span>
             <div>
               <h2 style="margin-bottom:4px">AI Performance Coach</h2>
               <p class="muted">Ask me anything about your maths performance — I'll analyse your real game data and give you personalised advice.</p>
@@ -53,7 +53,7 @@ Pages.coach = function(el) {
             <input type="text" id="coach-input" placeholder="Ask your coach anything about your performance…"
               style="flex:1;font-size:.95rem" />
             <button class="btn btn-primary btn-sm" id="coach-send-btn" style="width:auto;padding:12px 20px;white-space:nowrap">
-              Ask AI ✨
+              Ask AI 
             </button>
           </div>
           <p id="coach-error" class="error-msg" style="margin-top:8px"></p>
@@ -62,11 +62,11 @@ Pages.coach = function(el) {
       </div>
     </div>`;
 
-  // ── Navigation ─────────────────────────────────────────────────────────
+  //  Navigation 
   el.querySelector('#coach-back-btn').addEventListener('click', () => App.showPage('landing'));
   el.querySelector('#coach-logout-btn').addEventListener('click', () => App.logout());
 
-  // ── Load stats snapshot ────────────────────────────────────────────────
+  //  Load stats snapshot 
   loadStats();
 
   async function loadStats() {
@@ -75,7 +75,7 @@ Pages.coach = function(el) {
       const d = await API.coachGetData();
       if (d.totalSessions === 0) {
         statsEl.innerHTML = `<div class="dash-panel" style="text-align:center;padding:24px">
-          <p style="font-size:1.5rem;margin-bottom:8px">🎮</p>
+          <p style="font-size:1.5rem;margin-bottom:8px"></p>
           <p class="muted">No sessions yet! Play some games first, then come back for coaching.</p>
         </div>`;
         return;
@@ -107,10 +107,10 @@ Pages.coach = function(el) {
           </div>
           <div class="dash-panel">
             <div class="panel-title">Quick Insights</div>
-            ${weakMode   ? `<p style="margin-bottom:10px">⚠️ <strong>Weakest mode:</strong> ${weakMode.mode} (${weakMode.avgAccuracy}%)</p>` : ''}
-            ${strongMode ? `<p style="margin-bottom:10px">✅ <strong>Strongest mode:</strong> ${strongMode.mode} (${strongMode.avgAccuracy}%)</p>` : ''}
-            ${d.recentWrong.length ? `<p style="margin-bottom:10px">❌ <strong>${d.recentWrong.length} recent mistakes</strong> logged</p>` : ''}
-            ${d.slowestQuestions[0] ? `<p>🐢 <strong>Slowest question:</strong> ${d.slowestQuestions[0].timeSec}s</p>` : ''}
+            ${weakMode   ? `<p style="margin-bottom:10px"> <strong>Weakest mode:</strong> ${weakMode.mode} (${weakMode.avgAccuracy}%)</p>` : ''}
+            ${strongMode ? `<p style="margin-bottom:10px"> <strong>Strongest mode:</strong> ${strongMode.mode} (${strongMode.avgAccuracy}%)</p>` : ''}
+            ${d.recentWrong.length ? `<p style="margin-bottom:10px"> <strong>${d.recentWrong.length} recent mistakes</strong> logged</p>` : ''}
+            ${d.slowestQuestions[0] ? `<p> <strong>Slowest question:</strong> ${d.slowestQuestions[0].timeSec}s</p>` : ''}
           </div>
         </div>`;
     } catch {
@@ -118,7 +118,7 @@ Pages.coach = function(el) {
     }
   }
 
-  // ── Chat logic ─────────────────────────────────────────────────────────
+  //  Chat logic 
   const messagesEl = el.querySelector('#coach-messages');
   const inputEl    = el.querySelector('#coach-input');
   const sendBtn    = el.querySelector('#coach-send-btn');
@@ -138,7 +138,7 @@ Pages.coach = function(el) {
 
   // Auto-welcome message
   setTimeout(() => {
-    appendMessage('coach', `Hi ${App.user.full_name?.split(' ')[0] || App.user.username}! 👋 I'm your AI performance coach. I've loaded your game data — ask me anything or pick a quick question above!`);
+    appendMessage('coach', `Hi ${App.user.full_name?.split(' ')[0] || App.user.username}!  I'm your AI performance coach. I've loaded your game data — ask me anything or pick a quick question above!`);
   }, 400);
 
   async function sendMessage() {
@@ -171,7 +171,7 @@ Pages.coach = function(el) {
     const div = document.createElement('div');
     div.className = 'coach-msg ' + (isCoach ? 'coach-msg-ai' : 'coach-msg-user');
     div.innerHTML = `
-      <div class="coach-msg-avatar">${isCoach ? '🤖' : '🧑'}</div>
+      <div class="coach-msg-avatar">${isCoach ? '' : ''}</div>
       <div class="coach-msg-bubble">${escHtml(text)}</div>`;
     messagesEl.appendChild(div);
     messagesEl.scrollTop = messagesEl.scrollHeight;
@@ -184,7 +184,7 @@ Pages.coach = function(el) {
     div.className = 'coach-msg coach-msg-ai';
     div.id = id;
     div.innerHTML = `
-      <div class="coach-msg-avatar">🤖</div>
+      <div class="coach-msg-avatar"></div>
       <div class="coach-msg-bubble coach-thinking">
         <span class="thinking-dot"></span><span class="thinking-dot"></span><span class="thinking-dot"></span>
         <span style="margin-left:6px;font-size:.8rem;color:var(--text-muted)">Analysing your data…</span>

@@ -4,7 +4,7 @@ Pages.register = function(el) {
   el.innerHTML = `
     <div class="page">
       <div class="card">
-        <span class="app-logo">R</span>
+        <span class="emoji-icon">✏️</span>
         <div class="stack-sm title-center" style="margin-bottom:28px">
           <h1 style="text-align:center;font-size:1.7rem">Create Account</h1>
           <p class="subtitle" style="text-align:center">Join MathGameApp today</p>
@@ -58,7 +58,7 @@ Pages.register = function(el) {
     regBtn.disabled = true; regBtn.textContent = 'Creating account…';
     try {
       await API.register({ fullName, username, email, password });
-      successEl.textContent = 'Account created. Redirecting to login...';
+      successEl.textContent = '✅ Account created! Redirecting to login…';
       successEl.style.display = 'block';
       setTimeout(() => App.showPage('login'), 1500);
     } catch (e) {

@@ -31,11 +31,10 @@ const App = {
       case 'modeSelect':        Pages.modeSelect(el);               break;
       case 'game':              Pages.game(el, params);             break;
       case 'summary':           Pages.summary(el, params);          break;
-      case 'sessionDetails':     Pages.sessionDetails(el, params);    break;
-      case 'forgotPassword':    Pages.forgotPassword(el);           break;
       case 'adminDashboard':    Pages.adminDashboard(el);           break;
       case 'educatorDashboard': Pages.educatorDashboard(el);        break;
       case 'coach':             Pages.coach(el);                    break;
+      case 'history':           Pages.history(el);                  break;
       default:                  Pages.login(el);
     }
   },

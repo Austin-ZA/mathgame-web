@@ -81,6 +81,29 @@ router.post('/logout', (req, res) => {
 });
 
 // ── GET /api/auth/me ──────────────────────────────────────────────────────
+router.post('/forgot-password', async (req, res) => {
+  const { username, email, newPassword } = req.body;
+  if (!username || !newPassword)
+    return res.status(400).json({ error: 'Username and new password are required.' });
+
+  try {
+    const rows = await pool.query('SELECT user_id, email FROM users WHERE username = ?', [username]);
+    if (!rows || rows.length === 0)
+      return res.status(404).json({ error: 'User not found.' });
+
+    const user = rows[0];
+    if (user.email && email && user.email.trim().toLowerCase() !== email.trim().toLowerCase())
+      return res.status(400).json({ error: 'Email does not match our records.' });
+
+    const hashedPassword = hashPassword(newPassword);
+    await pool.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [hashedPassword, user.user_id]);
+    res.json({ success: true });
+  } catch (err) {
+    console.error('[auth] Forgot password error:', err.message);
+    res.status(500).json({ error: 'Could not reset password.' });
+  }
+});
+
 router.get('/me', (req, res) => {
   if (!req.session.user)
     return res.status(401).json({ error: 'Not logged in.' });

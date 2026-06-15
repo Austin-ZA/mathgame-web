@@ -149,7 +149,7 @@ Pages.game = function(el, { mode, level }) {
     el.querySelector('#question-card').innerHTML   = '<div class="loading-center"><div class="spinner"></div></div>';
 
     try {
-      currentQ = await API.getQuestion({ mode, level });
+      currentQ = await API.getQuestion(mode, level);
       el.querySelector('#question-card').innerHTML =
         `<p style="font-size:1.25rem;font-weight:700;text-align:center;margin:0">${currentQ.questionText}</p>`;
       renderAnswerArea();

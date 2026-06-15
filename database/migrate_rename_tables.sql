@@ -66,3 +66,48 @@ GO
 
 PRINT 'Migration complete. Table names now match the ERD.';
 GO
+
+-- ============================================================
+-- Migration: Add hint_text to custom_questions (if not exists)
+-- Run this if upgrading from an older schema version
+-- ============================================================
+IF NOT EXISTS (
+    SELECT * FROM INFORMATION_SCHEMA.COLUMNS
+    WHERE TABLE_NAME = 'custom_questions' AND COLUMN_NAME = 'hint_text'
+)
+BEGIN
+    ALTER TABLE custom_questions ADD hint_text NVARCHAR(300) NOT NULL DEFAULT '';
+END
+GO
+
+-- Migration: Create consolidated profiles table (replaces student_profile, educator_profile, admin_profile)
+-- Only run if old tables still exist
+IF EXISTS (SELECT * FROM sysobjects WHERE name='student_profile' AND xtype='U')
+AND NOT EXISTS (SELECT * FROM sysobjects WHERE name='profiles' AND xtype='U')
+BEGIN
+    CREATE TABLE profiles (
+        profile_id    INT           IDENTITY(1,1) PRIMARY KEY,
+        user_id       INT           NOT NULL UNIQUE REFERENCES users(user_id) ON DELETE CASCADE,
+        grade_level   VARCHAR(50)   NULL,
+        school_name   VARCHAR(100)  NULL,
+        institution   VARCHAR(100)  NULL,
+        department    VARCHAR(100)  NULL,
+        created_at    DATETIME      NOT NULL DEFAULT GETDATE()
+    );
+    INSERT INTO profiles (user_id, grade_level, school_name, created_at)
+        SELECT user_id, grade_level, school_name, created_at FROM student_profile;
+    INSERT INTO profiles (user_id, institution, department, created_at)
+        SELECT ep.user_id, ep.institution, ep.department, ep.created_at
+        FROM educator_profile ep
+        WHERE ep.user_id NOT IN (SELECT user_id FROM profiles);
+END
+GO
+
+-- Migration: Merge admin_activity_log into audit_log (if old table exists)
+IF EXISTS (SELECT * FROM sysobjects WHERE name='admin_activity_log' AND xtype='U')
+BEGIN
+    INSERT INTO audit_log (actor_id, action_type, description, target_user_id, logged_at)
+        SELECT admin_id, action_type, description, target_user_id, logged_at
+        FROM admin_activity_log;
+END
+GO

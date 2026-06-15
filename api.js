@@ -23,8 +23,7 @@ const API = {
   getQuestion:  (mode, level) => API.get(`/api/game/question?mode=${mode}&level=${level}`),
   saveAnswer:   b  => API.post('/api/game/answer', b),
   finishSession:b  => API.post('/api/game/finish', b),
-  getHistory:   (days = 7) => API.get(`/api/game/history?days=${days}`),
-  getSession:    (id) => API.get(`/api/game/session/${id}`),
+  getHistory:   () => API.get('/api/game/history'),
 
   // Admin
   adminGetStats:        () => API.get('/api/admin/stats'),
@@ -37,7 +36,6 @@ const API = {
   adminDeleteUser:      (uid) => API.post('/api/admin/users/delete', { userId: uid }),
   adminGetQuestions:    (mode, level) => API.get(`/api/admin/questions?mode=${mode}&level=${level}`),
   adminAddQuestion:     (b) => API.post('/api/admin/questions', b),
-  forgotPassword:      (b) => API.post('/api/auth/forgot-password', b),
   adminDeleteQuestion:  (qid) => API.post('/api/admin/questions/delete', { questionId: qid }),
 
   // Educator
