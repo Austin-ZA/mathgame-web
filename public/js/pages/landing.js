@@ -67,11 +67,7 @@ Pages.landing = function(el, user) {
           const acc = s.total_questions > 0 ? Math.round((s.correct_answers / s.total_questions) * 100) : 0;
           const time = new Date(s.played_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
           const modeBadge = `<span class="badge badge-mode-${s.mode}">${s.mode}</span>`;
-          return `<tr>
-            <td>${modeBadge}</td>
-            <td>${s.difficulty.replace('level','L')}</td>
-            <td>${s.score} pts</td>
-            <td>${s.correct_answers}/${s.total_questions}</td>
+            return `<tr data-session-id="${s.session_id}">
             <td>${acc}%</td>
             <td style="color:var(--text-muted);font-size:.8rem">${time}</td>
           </tr>`;
@@ -94,20 +90,14 @@ Pages.landing = function(el, user) {
       histEl.innerHTML = `<div>${groupsHtml}</div>`;
       // make session rows clickable to view details
       histEl.querySelectorAll('tbody tr').forEach(r => {
-        // try to find the matching session by time+score fallback if session_id not in row
         r.style.cursor = 'pointer';
         r.addEventListener('click', () => {
-          const idx = Array.from(r.parentNode.children).indexOf(r);
-          // find the session object from grouped structure by day and index
-          // simpler: extract time cell and find matching session
-          const timeCell = r.cells[r.cells.length - 1]?.textContent?.trim();
-          const scoreCell = r.cells[2]?.textContent?.trim();
-          // Lookup session by matching time and score from the fetched sessions
-          const found = sessions.find(s => {
-            const t = new Date(s.played_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-            return t === timeCell && `${s.score} pts` === scoreCell;
-          });
-          if (found) App.showPage('sessionDetails', { sessionId: found.session_id });
+          const sessionId = r.dataset.sessionId;
+          if (sessionId) {
+            App.showPage('sessionDetails', { sessionId });
+          } else {
+            console.warn('No sessionId found on clicked history row');
+          }
         });
       });
     } catch {
