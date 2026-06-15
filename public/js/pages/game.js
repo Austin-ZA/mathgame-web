@@ -195,19 +195,9 @@ Pages.game = function(el, { mode, level }) {
     hintUsed = true;
 
     const hintBox = el.querySelector('#hint-box');
-    const raw     = currentQ.hint || currentQ.correctAnswer;
+    const raw     = currentQ.hint || 'Try breaking the problem into smaller steps; focus on the operation shown.';
 
-    let label;
-    if (mode === 'algebra') {
-      label = `Hint: ${raw}`;
-    } else if (mode === 'binary') {
-      label = `Hint: ${raw}`;
-    } else {
-      // computational — raw may be plain number or "The answer is X"
-      label = `Hint: ${raw}`;
-    }
-
-    hintBox.textContent     = label;
+    hintBox.textContent     = `Hint: ${raw}`;
     hintBox.style.display   = 'block';
 
     // Disable hint button after use

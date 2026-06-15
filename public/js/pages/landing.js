@@ -26,19 +26,8 @@ Pages.landing = function(el, user) {
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px">
           <h2>Quick Start</h2>
         </div>
-        <div class="mode-grid" style="margin-top:0">
-          <div class="mode-card" id="quick-comp" title="Quick start Level 1 Computational practise: PEMDAS, fractions, decimals and more.">
-            <h3>Computational</h3>
-            <p>PEMDAS, fractions, decimals and more</p>
-          </div>
-          <div class="mode-card" id="quick-alg" title="Quick start Level 1 Algebra practise: equations, substitution and quadratics.">
-            <h3>Algebra</h3>
-            <p>Equations, substitution and quadratics</p>
-          </div>
-          <div class="mode-card" id="quick-bin" title="Quick start Binary practise: decimal/binary/hexadecimal conversions.">
-            <h3>Binary</h3>
-            <p>Dec to Bin to Hex conversions</p>
-          </div>
+        <div style="margin-top:12px;text-align:center">
+          <button class="btn btn-primary" id="start-game-btn" style="max-width:260px">Start Game</button>
         </div>
 
         <!-- Session history -->
@@ -51,9 +40,7 @@ Pages.landing = function(el, user) {
       </div>
     </div>`;
 
-  el.querySelector('#quick-comp').addEventListener('click', () => App.showPage('modeSelect', { mode: 'computational', level: 1 }));
-  el.querySelector('#quick-alg').addEventListener('click',  () => App.showPage('modeSelect', { mode: 'algebra', level: 1 }));
-  el.querySelector('#quick-bin').addEventListener('click',  () => App.showPage('modeSelect', { mode: 'binary', level: 1 }));
+  el.querySelector('#start-game-btn').addEventListener('click', () => App.showPage('modeSelect'));
   el.querySelector('#logout-btn').addEventListener('click', () => App.logout());
   el.querySelector('#coach-btn').addEventListener('click',  () => App.showPage('coach'));
 
@@ -105,6 +92,24 @@ Pages.landing = function(el, user) {
       }).join('');
 
       histEl.innerHTML = `<div>${groupsHtml}</div>`;
+      // make session rows clickable to view details
+      histEl.querySelectorAll('tbody tr').forEach(r => {
+        // try to find the matching session by time+score fallback if session_id not in row
+        r.style.cursor = 'pointer';
+        r.addEventListener('click', () => {
+          const idx = Array.from(r.parentNode.children).indexOf(r);
+          // find the session object from grouped structure by day and index
+          // simpler: extract time cell and find matching session
+          const timeCell = r.cells[r.cells.length - 1]?.textContent?.trim();
+          const scoreCell = r.cells[2]?.textContent?.trim();
+          // Lookup session by matching time and score from the fetched sessions
+          const found = sessions.find(s => {
+            const t = new Date(s.played_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+            return t === timeCell && `${s.score} pts` === scoreCell;
+          });
+          if (found) App.showPage('sessionDetails', { sessionId: found.session_id });
+        });
+      });
     } catch {
       histEl.innerHTML = `<p class="error-msg">Could not load history.</p>`;
     }

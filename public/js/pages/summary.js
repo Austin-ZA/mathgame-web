@@ -3,7 +3,6 @@
 
 Pages.summary = function(el, { mode, level, score, correctCount, totalQuestions, timeTaken, skippedCount = 0, unanswered = 0, answeredCount = 0 }) {
   const accuracy = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
-  const grade    = accuracy >= 90 ? 'A+' : accuracy >= 80 ? 'A' : accuracy >= 70 ? 'B' : accuracy >= 60 ? 'C' : 'D';
   const pct      = `${accuracy}%`;
   const mins     = Math.floor(timeTaken / 60);
   const secs     = timeTaken % 60;
@@ -26,11 +25,7 @@ Pages.summary = function(el, { mode, level, score, correctCount, totalQuestions,
           </div>
         </div>
 
-        <!-- Grade badge -->
-        <div style="text-align:center;margin-bottom:20px">
-          <span style="font-size:2rem;font-weight:800;color:var(--primary-light)">${grade}</span>
-          <span class="muted" style="font-size:.85rem;margin-left:8px">Grade</span>
-        </div>
+        <!-- Grade removed per user request -->
 
         <!-- Stats -->
         <div class="card" style="background:var(--bg-card2);padding:16px 20px;margin-bottom:20px">
