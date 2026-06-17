@@ -20,6 +20,8 @@ Pages.game = function(el, { mode, level }) {
   let questionStart = null;
   let totalTime     = 0;
   let hintUsed      = false;
+  let hintsUsed     = 0;
+  const MAX_HINTS   = 3;
   let skippedCount  = 0;
   let answeredCount = 0;
   let responses     = 0;
@@ -187,25 +189,30 @@ Pages.game = function(el, { mode, level }) {
     el.querySelector('#hint-btn').onclick = handleHint;
     el.querySelector('#skip-btn').onclick = handleSkip;
     el.querySelector('#quit-btn').onclick = handleQuit;
+    updateHintButton();
+  }
+
+  function updateHintButton() {
+    const hintBtn = el.querySelector('#hint-btn');
+    if (!hintBtn) return;
+    const remaining = Math.max(0, MAX_HINTS - hintsUsed);
+    hintBtn.textContent = remaining > 0 ? `Get Hint (${remaining})` : 'No Hints Left';
+    hintBtn.disabled = remaining === 0 || answered;
+    hintBtn.style.opacity = (remaining === 0 || answered) ? '0.5' : '1';
   }
 
   // Hint handler — shows the final answer, mode-appropriate label
   function handleHint() {
-    if (answered || hintUsed) return;
+    if (answered || hintUsed || hintsUsed >= MAX_HINTS) return;
     hintUsed = true;
+    hintsUsed += 1;
 
     const hintBox = el.querySelector('#hint-box');
     const raw     = currentQ.hint || 'Try breaking the problem into smaller steps; focus on the operation shown.';
 
     hintBox.textContent     = `Hint: ${raw}`;
     hintBox.style.display   = 'block';
-
-    // Disable hint button after use
-    const hintBtn = el.querySelector('#hint-btn');
-    if (hintBtn) {
-      hintBtn.disabled = true;
-      hintBtn.style.opacity = '0.5';
-    }
+    updateHintButton();
   }
 
   // Multiple choice
@@ -373,6 +380,7 @@ Pages.game = function(el, { mode, level }) {
 
   function handleQuit() {
     if (!sessionId) return;
+    if (!window.confirm('Are you sure you want to quit the game? Your current progress will be saved.')) return;
     stopTimer();
     ttsStop();
     hideActionRow();

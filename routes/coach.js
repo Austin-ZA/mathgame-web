@@ -270,9 +270,9 @@ function callClaude(prompt) {
         try {
           const parsed = JSON.parse(raw);
           if (parsed.error) return reject(new Error(parsed.error.message || 'Anthropic API error'));
-          const text = parsed.content?.[0]?.text || '';
+          const text = parseClaudeResponse(parsed);
           if (!text) return reject(new Error('Empty response from Anthropic API'));
-          resolve(text);
+          resolve(text.trim());
         } catch (e) {
           reject(new Error('Bad JSON response from Anthropic API: ' + e.message));
         }
@@ -283,6 +283,10 @@ function callClaude(prompt) {
     req.write(body);
     req.end();
   });
+}
+
+function parseClaudeResponse(parsed) {
+  return parsed.completion || parsed.output?.text || parsed.response?.output_text || parsed.content?.[0]?.text || parsed.message?.content?.text || '';
 }
 
 module.exports = router;

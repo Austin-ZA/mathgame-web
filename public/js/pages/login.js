@@ -6,7 +6,7 @@ Pages.login = function(el) {
   el.innerHTML = `
     <div class="page">
       <div class="card">
-        <span class="app-logo">M</span>
+        <span class="app-logo"></span>
         <div class="stack-sm title-center" style="margin-bottom:28px">
           <h1 style="text-align:center;font-size:1.7rem">MathGameApp</h1>
           <p class="subtitle" style="text-align:center">Sign in to continue</p>

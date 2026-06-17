@@ -1,7 +1,7 @@
 // public/js/pages/summary.js
 // Mirrors ScoreSummaryScreen.java
 
-Pages.summary = function(el, { mode, level, score, correctCount, totalQuestions, timeTaken, skippedCount = 0, unanswered = 0, answeredCount = 0 }) {
+Pages.summary = function(el, { mode, level, score, correctCount, totalQuestions, timeTaken, skippedCount = 0, unanswered = 0, answeredCount = 0, sessionId } = {}) {
   const accuracy = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
   const pct      = `${accuracy}%`;
   const mins     = Math.floor(timeTaken / 60);
@@ -28,7 +28,7 @@ Pages.summary = function(el, { mode, level, score, correctCount, totalQuestions,
         <!-- Grade removed per user request -->
 
         <!-- Stats -->
-        <div class="card" style="background:var(--bg-card2);padding:16px 20px;margin-bottom:20px">
+        <div class="card" style="background:var(--bg-card2);padding:16px 20px;margin-top:8px;margin-bottom:20px">
           <div class="stat-row">
             <span class="muted">Total Score</span>
             <span class="stat-value" style="color:var(--primary-light)">${score} pts</span>

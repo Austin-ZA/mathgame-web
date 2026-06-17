@@ -66,10 +66,13 @@ Pages.landing = function(el, user) {
         const rows = items.map(s => {
           const acc = s.total_questions > 0 ? Math.round((s.correct_answers / s.total_questions) * 100) : 0;
           const time = new Date(s.played_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-          const modeBadge = `<span class="badge badge-mode-${s.mode}">${s.mode}</span>`;
-            return `<tr data-session-id="${s.session_id}">
+          return `<tr data-session-id="${s.session_id}">
+            <td>${s.mode || '—'}</td>
+            <td>${(s.difficulty || '').replace('level','L') || '—'}</td>
+            <td>${s.score ?? 0}</td>
+            <td>${s.correct_answers ?? 0} / ${s.total_questions ?? 0}</td>
             <td>${acc}%</td>
-            <td style="color:var(--text-muted);font-size:.8rem">${time}</td>
+            <td>${time}</td>
           </tr>`;
         }).join('');
 
