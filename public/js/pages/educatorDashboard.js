@@ -262,8 +262,8 @@ Pages.educatorDashboard = function(el) {
         <div class="dash-panel">
           <div class="panel-title">Exports</div>
           <div class="stack" style="gap:10px">
-            <button class="btn btn-secondary" id="exp-class"> Class performance report (CSV)</button>
-            <button class="btn btn-secondary" id="exp-students"> Individual student data (CSV)</button>
+            <button class="btn btn-secondary" id="exp-class"> Class performance report (PDF)</button>
+            <button class="btn btn-secondary" id="exp-students"> Individual student data (PDF)</button>
           </div>
         </div>
         <div class="dash-panel">

@@ -1,5 +1,6 @@
 // routes/educator.js
 const express = require('express');
+const PDFDocument = require('pdfkit');
 const router  = express.Router();
 const { pool } = require('../db');
 const { requireAuth } = require('../middleware/auth');
@@ -16,6 +17,60 @@ router.use((req, res, next) => {
 function toInt(v)   { const n = parseInt(v);   return isNaN(n) ? 0 : n; }
 function toFloat(v) { const n = parseFloat(v); return isNaN(n) ? 0 : n; }
 function toStr(v)   { return (v === null || v === undefined || v === 'NULL') ? null : String(v); }
+
+function writePdfRows(doc, rows, columns) {
+  doc.fontSize(11);
+  const heading = columns.map(c => c.label).join(' | ');
+  doc.text(heading);
+  doc.moveDown(0.25);
+  rows.forEach((row, index) => {
+    const line = columns.map(c => String(row[c.key] ?? '')).join(' | ');
+    doc.text(line);
+    if (index < rows.length - 1) doc.moveDown(0.1);
+  });
+}
+
+function drawTable(doc, columns, rows, opts = {}) {
+  const startX = doc.x;
+  const startY = doc.y;
+  const pageWidth = doc.page.width - doc.page.margins.left - doc.page.margins.right;
+  const colCount = columns.length;
+  const colWidths = columns.map(c => c.width || Math.floor(pageWidth / colCount));
+
+  function renderHeader() {
+    doc.font('Helvetica-Bold').fontSize(11);
+    let x = startX;
+    for (let i = 0; i < columns.length; i++) {
+      doc.text(columns[i].label, x, doc.y, { width: colWidths[i], continued: false });
+      x += colWidths[i];
+    }
+    doc.moveDown(0.3);
+    doc.font('Helvetica').fontSize(10);
+  }
+
+  renderHeader();
+
+  rows.forEach((row) => {
+    const heights = columns.map((c, i) => {
+      const text = String(row[c.key] ?? '');
+      return doc.heightOfString(text, { width: colWidths[i] });
+    });
+    const rowHeight = Math.max(...heights, doc.currentLineHeight());
+
+    if (doc.y + rowHeight > doc.page.height - doc.page.margins.bottom - 20) {
+      doc.addPage();
+      renderHeader();
+    }
+
+    let x = startX;
+    for (let i = 0; i < columns.length; i++) {
+      const text = String(row[columns[i].key] ?? '');
+      doc.text(text, x, doc.y, { width: colWidths[i] });
+      x += colWidths[i];
+    }
+    doc.moveDown(0.2);
+  });
+}
 
 // GET /api/educator/stats
 router.get('/stats', async (req, res) => {
@@ -186,14 +241,27 @@ router.get('/export/class', async (req, res) => {
       ' WHERE s.user_id IN (' + placeholders + ') ORDER BY s.played_at DESC',
       ids
     );
-    const header = 'session_id,username,full_name,mode,difficulty,score,total_questions,correct_answers,time_taken_seconds,played_at';
-    const csv = [header, ...rows.map(r =>
-      [r.session_id,r.username,r.full_name,r.mode,r.difficulty,r.score,
-       r.total_questions,r.correct_answers,r.time_taken_seconds,r.played_at].join(',')
-    )].join('\n');
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename="class_report.csv"');
-    res.send(csv);
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="class_report.pdf"');
+
+    const doc = new PDFDocument({ margin: 36, size: 'A4' });
+    doc.pipe(res);
+    doc.fontSize(18).text('Class Performance Report', { underline: true });
+    doc.moveDown(0.5);
+    doc.fontSize(12).text(`Generated: ${new Date().toLocaleString()}`);
+    doc.moveDown(0.75);
+    drawTable(doc, [
+      { key: 'session_id', label: 'Session', width: 60 },
+      { key: 'username', label: 'User', width: 90 },
+      { key: 'mode', label: 'Mode', width: 90 },
+      { key: 'difficulty', label: 'Level', width: 50 },
+      { key: 'score', label: 'Score', width: 50 },
+      { key: 'correct_answers', label: 'Correct', width: 50 },
+      { key: 'total_questions', label: 'Total', width: 50 },
+      { key: 'played_at', label: 'Played At', width: 120 }
+    ], rows);
+    doc.end();
   } catch (err) {
     console.error('[educator] export class error:', err.message);
     res.status(500).json({ error: 'Export failed.' });
@@ -219,19 +287,34 @@ router.get('/export/students', async (req, res) => {
     const statMap = {};
     stats.forEach(s => { statMap[String(s.user_id)] = s; });
 
-    const header = 'user_id,username,full_name,email,total_sessions,avg_accuracy,last_active';
-    const csv = [header, ...students.map(s => {
-      const st = statMap[String(s.user_id)] || {};
-      return [
-        s.user_id, s.username, s.full_name, s.email || '',
-        toInt(st.total_sessions),
-        Math.round(toFloat(st.avg_accuracy)),
-        toStr(st.last_active) || ''
-      ].join(',');
-    })].join('\n');
-    res.setHeader('Content-Type', 'text/csv');
-    res.setHeader('Content-Disposition', 'attachment; filename="students_report.csv"');
-    res.send(csv);
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', 'attachment; filename="students_report.pdf"');
+
+    const doc = new PDFDocument({ margin: 36, size: 'A4' });
+    doc.pipe(res);
+    doc.fontSize(18).text('Student Summary Report', { underline: true });
+    doc.moveDown(0.5);
+    doc.fontSize(12).text(`Generated: ${new Date().toLocaleString()}`);
+    doc.moveDown(0.75);
+    const rowsData = students.map(s => ({
+      user_id: s.user_id,
+      username: s.username,
+      full_name: s.full_name,
+      email: s.email || '',
+      total_sessions: toInt((statMap[String(s.user_id)] || {}).total_sessions),
+      avg_accuracy: Math.round(toFloat((statMap[String(s.user_id)] || {}).avg_accuracy)),
+      last_active: toStr((statMap[String(s.user_id)] || {}).last_active) || ''
+    }));
+    drawTable(doc, [
+      { key: 'user_id', label: 'User ID', width: 60 },
+      { key: 'username', label: 'Username', width: 90 },
+      { key: 'full_name', label: 'Full Name', width: 140 },
+      { key: 'email', label: 'Email', width: 140 },
+      { key: 'total_sessions', label: 'Sessions', width: 50 },
+      { key: 'avg_accuracy', label: 'Accuracy', width: 50 },
+      { key: 'last_active', label: 'Last Active', width: 120 }
+    ], rowsData);
+    doc.end();
   } catch (err) {
     console.error('[educator] export students error:', err.message);
     res.status(500).json({ error: 'Export failed.' });

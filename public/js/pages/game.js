@@ -6,7 +6,7 @@ Pages.game = function(el, { mode, level }) {
 
   function timerSeconds() {
     const lvl = parseInt(level) || 1;
-    return lvl === 1 ? 40 : lvl === 2 ? 35 : lvl === 3 ? 30 : lvl === 4 ? 25 : 20;
+    return lvl === 1 ? 40 : lvl === 2 ? 60 : lvl === 3 ? 80 : lvl === 4 ? 100 : 150;
   }
 
   let sessionId     = null;

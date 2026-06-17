@@ -113,8 +113,10 @@ Pages.coach = function(el) {
             ${d.slowestQuestions[0] ? `<p> <strong>Slowest question:</strong> ${d.slowestQuestions[0].timeSec}s</p>` : ''}
           </div>
         </div>`;
-    } catch {
-      statsEl.innerHTML = `<p class="error-msg">Could not load performance data.</p>`;
+    } catch (err) {
+      const msg = err?.message || 'Could not load performance data.';
+      statsEl.innerHTML = `<p class="error-msg">${msg}</p>`;
+      console.error('[coach] loadStats error:', err);
     }
   }
 

@@ -67,12 +67,24 @@ Pages.summary = function(el, { mode, level, score, correctCount, totalQuestions,
 
   el.querySelector('#play-again-btn').addEventListener('click',  () => App.showPage('game', { mode, level }));
   el.querySelector('#change-mode-btn').addEventListener('click', () => App.showPage('modeSelect'));
-  el.querySelector('#history-btn').addEventListener('click',     () => App.showPage('sessionDetails', { sessionId }));
-  el.querySelector('#dashboard-btn').addEventListener('click',   () => App.showPage('landing'));
+  const historyBtn = el.querySelector('#history-btn');
+  if (sessionId) {
+    historyBtn.addEventListener('click', () => App.showPage('sessionDetails', { sessionId }));
+  } else {
+    historyBtn.disabled = true;
+    historyBtn.textContent = 'No session available';
+  }
+  el.querySelector('#dashboard-btn').addEventListener('click', () => App.showPage('landing'));
 };
 
 Pages.sessionDetails = async function(el, { sessionId } = {}) {
   el.innerHTML = `<div class="page"><div class="card"><div class="loading-center"><div class="spinner"></div></div></div></div>`;
+  if (!sessionId) {
+    el.innerHTML = `<div class="page"><div class="card"><p class="error-msg">No session selected.</p><button class="btn btn-secondary" id="sd-back">Back</button></div></div>`;
+    el.querySelector('#sd-back').addEventListener('click', () => App.showPage('landing'));
+    return;
+  }
+
   try {
     const data = await API.getSession(sessionId);
     const session = data.session;
@@ -110,7 +122,8 @@ Pages.sessionDetails = async function(el, { sessionId } = {}) {
 
     el.querySelector('#sd-back').addEventListener('click', () => App.showPage('summary', { mode: session.mode, level: session.difficulty.includes('level') ? parseInt(session.difficulty.replace('level','')) : 1, score: session.score || 0, correctCount: session.correct_answers || 0, totalQuestions: session.total_questions || 0, timeTaken: session.time_taken_seconds || 0, skippedCount: 0, unanswered: 0, answeredCount: session.correct_answers || 0, sessionId }));
   } catch (e) {
-    el.innerHTML = `<div class="page"><div class="card"><p class="error-msg">Could not load session details.</p><button class="btn btn-secondary" id="sd-back">Back</button></div></div>`;
+    const message = e?.message || 'Could not load session details.';
+    el.innerHTML = `<div class="page"><div class="card"><p class="error-msg">${message}</p><button class="btn btn-secondary" id="sd-back">Back</button></div></div>`;
     el.querySelector('#sd-back').addEventListener('click', () => App.showPage('landing'));
   }
 };

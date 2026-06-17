@@ -291,8 +291,8 @@ Pages.adminDashboard = function(el) {
         <div class="dash-panel">
           <div class="panel-title">Quick exports</div>
           <div class="stack" style="gap:10px">
-            <button class="btn btn-secondary" id="export-sessions"> Export all sessions (CSV)</button>
-            <button class="btn btn-secondary" id="export-users"> Export user list (CSV)</button>
+            <button class="btn btn-secondary" id="export-sessions"> Export all sessions (PDF)</button>
+            <button class="btn btn-secondary" id="export-users"> Export user list (PDF)</button>
           </div>
         </div>
         <div class="dash-panel">
