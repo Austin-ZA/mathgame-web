@@ -118,7 +118,7 @@ router.get('/session/:id', async (req, res) => {
     res.json({ session, answers });
   } catch (err) {
     console.error('[game] Get session error:', err.message);
-    res.status(500).json({ error: 'Could not fetch session details.' });
+    res.status(500).json({ error: `Failed to fetch session: ${err.message}` });
   }
 });
 

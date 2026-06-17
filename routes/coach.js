@@ -24,7 +24,7 @@ router.get('/data', async (req, res) => {
     res.json(data);
   } catch (err) {
     console.error('[coach] data error:', err.message);
-    res.status(500).json({ error: 'Could not load performance data.' });
+    res.status(500).json({ error: `Failed to load performance data: ${err.message}` });
   }
 });
 
@@ -45,7 +45,7 @@ router.post('/analyse', async (req, res) => {
     res.json({ feedback, data });
   } catch (err) {
     console.error('[coach] analyse error:', err.message, err.stack);
-    res.status(500).json({ error: 'AI coach is unavailable right now. Please try again.', detail: err.message });
+    res.status(500).json({ error: `AI coach unavailable: ${err.message}` });
   }
 });
 
@@ -53,89 +53,107 @@ router.post('/analyse', async (req, res) => {
 async function gatherStudentData(userId) {
 
   // 1. Overall session summary
-  const summaryRows = await pool.query(`
-    SELECT
-      COUNT(*)                                                                          AS total_sessions,
-      AVG(CAST(score AS FLOAT))                                                         AS avg_score,
-      SUM(correct_answers)                                                              AS total_correct,
-      SUM(total_questions)                                                              AS total_questions,
-      AVG(CASE WHEN total_questions > 0
-               THEN CAST(correct_answers AS FLOAT) / total_questions * 100
-               ELSE NULL END)                                                           AS avg_accuracy,
-      AVG(CAST(time_taken_seconds AS FLOAT))                                            AS avg_time_seconds,
-      MAX(played_at)                                                                    AS last_played
-    FROM sessions
-    WHERE user_id = ?
-  `, [userId]);
+  let summaryRows = [];
+  try {
+    summaryRows = await pool.query(`
+      SELECT
+        COUNT(*)                                                                          AS total_sessions,
+        AVG(CAST(score AS FLOAT))                                                         AS avg_score,
+        SUM(correct_answers)                                                              AS total_correct,
+        SUM(total_questions)                                                              AS total_questions,
+        AVG(CASE WHEN total_questions > 0
+                 THEN CAST(correct_answers AS FLOAT) / total_questions * 100
+                 ELSE NULL END)                                                           AS avg_accuracy,
+        AVG(CAST(time_taken_seconds AS FLOAT))                                            AS avg_time_seconds,
+        MAX(played_at)                                                                    AS last_played
+      FROM sessions
+      WHERE user_id = ?
+    `, [userId]);
+  } catch (e) { console.error('[coach] summaryRows error:', e.message); }
 
   // 2. Accuracy broken down by mode
-  const modeRows = await pool.query(`
-    SELECT
-      mode,
-      COUNT(*)                                                                          AS sessions,
-      AVG(CASE WHEN total_questions > 0
-               THEN CAST(correct_answers AS FLOAT) / total_questions * 100
-               ELSE NULL END)                                                           AS avg_accuracy,
-      AVG(CAST(score AS FLOAT))                                                         AS avg_score,
-      AVG(CAST(time_taken_seconds AS FLOAT))                                            AS avg_time
-    FROM sessions
-    WHERE user_id = ?
-    GROUP BY mode
-  `, [userId]);
+  let modeRows = [];
+  try {
+    modeRows = await pool.query(`
+      SELECT
+        mode,
+        COUNT(*)                                                                          AS sessions,
+        AVG(CASE WHEN total_questions > 0
+                 THEN CAST(correct_answers AS FLOAT) / total_questions * 100
+                 ELSE NULL END)                                                           AS avg_accuracy,
+        AVG(CAST(score AS FLOAT))                                                         AS avg_score,
+        AVG(CAST(time_taken_seconds AS FLOAT))                                            AS avg_time
+      FROM sessions
+      WHERE user_id = ?
+      GROUP BY mode
+    `, [userId]);
+  } catch (e) { console.error('[coach] modeRows error:', e.message); }
 
   // 3. Accuracy broken down by difficulty level
-  const levelRows = await pool.query(`
-    SELECT
-      difficulty,
-      COUNT(*)                                                                          AS sessions,
-      AVG(CASE WHEN total_questions > 0
-               THEN CAST(correct_answers AS FLOAT) / total_questions * 100
-               ELSE NULL END)                                                           AS avg_accuracy
-    FROM sessions
-    WHERE user_id = ?
-    GROUP BY difficulty
-  `, [userId]);
+  let levelRows = [];
+  try {
+    levelRows = await pool.query(`
+      SELECT
+        difficulty,
+        COUNT(*)                                                                          AS sessions,
+        AVG(CASE WHEN total_questions > 0
+                 THEN CAST(correct_answers AS FLOAT) / total_questions * 100
+                 ELSE NULL END)                                                           AS avg_accuracy
+      FROM sessions
+      WHERE user_id = ?
+      GROUP BY difficulty
+    `, [userId]);
+  } catch (e) { console.error('[coach] levelRows error:', e.message); }
 
   // 4. Wrong answers grouped by question_text pattern (last 50 sessions worth)
   //    Uses the answers table which stores question_text as free text.
-  const wrongRows = await pool.query(`
-    SELECT TOP 10
-      a.question_text,
-      a.correct_answer,
-      a.student_answer,
-      s.mode,
-      s.difficulty,
-      a.time_taken_seconds
-    FROM answers a
-    JOIN sessions s ON s.session_id = a.session_id
-    WHERE s.user_id = ?
-      AND a.is_correct = 0
-    ORDER BY a.answered_at DESC
-  `, [userId]);
+  let wrongRows = [];
+  try {
+    wrongRows = await pool.query(`
+      SELECT TOP 10
+        a.question_text,
+        a.correct_answer,
+        a.student_answer,
+        s.mode,
+        s.difficulty,
+        a.time_taken_seconds
+      FROM answers a
+      JOIN sessions s ON s.session_id = a.session_id
+      WHERE s.user_id = ?
+        AND a.is_correct = 0
+      ORDER BY a.answer_id DESC
+    `, [userId]);
+  } catch (e) { console.error('[coach] wrongRows error:', e.message); }
 
   // 5. Recent trend: last 10 sessions ordered chronologically
-  const trendRows = await pool.query(`
-    SELECT TOP 10
-      mode, difficulty, score, correct_answers, total_questions,
-      time_taken_seconds, played_at
-    FROM sessions
-    WHERE user_id = ?
-    ORDER BY played_at DESC
-  `, [userId]);
+  let trendRows = [];
+  try {
+    trendRows = await pool.query(`
+      SELECT TOP 10
+        mode, difficulty, score, correct_answers, total_questions,
+        time_taken_seconds, played_at
+      FROM sessions
+      WHERE user_id = ?
+      ORDER BY played_at DESC
+    `, [userId]);
+  } catch (e) { console.error('[coach] trendRows error:', e.message); }
 
   // 6. Slowest-answered questions (high time_taken)
-  const slowRows = await pool.query(`
-    SELECT TOP 5
-      a.question_text,
-      a.time_taken_seconds,
-      a.is_correct,
-      s.mode,
-      s.difficulty
-    FROM answers a
-    JOIN sessions s ON s.session_id = a.session_id
-    WHERE s.user_id = ?
-    ORDER BY a.time_taken_seconds DESC
-  `, [userId]);
+  let slowRows = [];
+  try {
+    slowRows = await pool.query(`
+      SELECT TOP 5
+        a.question_text,
+        a.time_taken_seconds,
+        a.is_correct,
+        s.mode,
+        s.difficulty
+      FROM answers a
+      JOIN sessions s ON s.session_id = a.session_id
+      WHERE s.user_id = ?
+      ORDER BY a.time_taken_seconds DESC
+    `, [userId]);
+  } catch (e) { console.error('[coach] slowRows error:', e.message); }
 
   const summary = summaryRows[0] || {};
 

@@ -6,7 +6,7 @@ const API = {
     if (body) opts.body = JSON.stringify(body);
     const res = await fetch(url, opts);
     const data = await res.json();
-    if (!res.ok) throw new Error(data.error || 'Request failed');
+    if (!res.ok) throw new Error(data.error || data.detail || 'Request failed');
     return data;
   },
   get:  (url)       => API._req('GET', url),
