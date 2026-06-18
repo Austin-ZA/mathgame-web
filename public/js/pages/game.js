@@ -1,30 +1,28 @@
 // public/js/pages/game.js
-// MathGameApp Web - Game Page
 
 Pages.game = function(el, { mode, level }) {
   const TOTAL_QUESTIONS = 10;
+  const MAX_HINTS = 3;
 
   function timerSeconds() {
     const lvl = parseInt(level) || 1;
     return lvl === 1 ? 40 : lvl === 2 ? 60 : lvl === 3 ? 80 : lvl === 4 ? 100 : 150;
   }
 
-  let sessionId     = null;
-  let currentQ      = null;
-  let questionNum   = 0;
-  let score         = 0;
-  let correctCount  = 0;
-  let answered      = false;
-  let timerInterval = null;
-  let timeLeft      = timerSeconds();
-  let questionStart = null;
-  let totalTime     = 0;
-  let hintUsed      = false;
-  let hintsUsed     = 0;
-  const MAX_HINTS   = 3;
-  let skippedCount  = 0;
-  let answeredCount = 0;
-  let responses     = 0;
+  let sessionId    = null;
+  let currentQ     = null;
+  let questionNum  = 0;
+  let score        = 0;
+  let correctCount = 0;
+  let answered     = false;
+  let timerInterval= null;
+  let timeLeft     = timerSeconds();
+  let questionStart= null;
+  let totalTime    = 0;
+  let hintUsed     = false;
+  let hintsUsed    = 0;
+  let skippedCount = 0;
+  let responses    = 0;
 
   // TTS
   let ttsUtterance = null;
@@ -32,8 +30,7 @@ Pages.game = function(el, { mode, level }) {
     if (!window.speechSynthesis) return;
     window.speechSynthesis.cancel();
     ttsUtterance = new SpeechSynthesisUtterance(text);
-    ttsUtterance.rate  = 0.92;
-    ttsUtterance.pitch = 1;
+    ttsUtterance.rate = 0.92;
     ttsUtterance.onend = () => updateTtsBtn(false);
     window.speechSynthesis.speak(ttsUtterance);
     updateTtsBtn(true);
@@ -45,17 +42,7 @@ Pages.game = function(el, { mode, level }) {
   function updateTtsBtn(speaking) {
     const btn = el.querySelector('#tts-btn');
     if (!btn) return;
-    if (speaking) {
-      btn.textContent = 'Stop Reading';
-      btn.style.background = 'rgba(239,83,80,0.18)';
-      btn.style.borderColor = 'rgba(239,83,80,0.45)';
-      btn.style.color = 'var(--error)';
-    } else {
-      btn.textContent = 'Read Aloud';
-      btn.style.background = 'rgba(91,106,245,0.12)';
-      btn.style.borderColor = 'rgba(91,106,245,0.35)';
-      btn.style.color = 'var(--primary-light)';
-    }
+    btn.textContent = speaking ? 'Stop Reading' : 'Read Aloud';
   }
 
   const modeLabel = { computational: 'Computational', algebra: 'Algebra', binary: 'Binary' }[mode] || mode;
@@ -76,7 +63,7 @@ Pages.game = function(el, { mode, level }) {
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;flex-wrap:wrap">
           <span class="muted" style="font-size:.85rem;text-transform:capitalize">${modeLabel} — Level ${level}</span>
           <div style="display:flex;gap:10px;align-items:center">
-            <button class="btn btn-secondary btn-sm" id="quit-btn" style="padding:7px 16px;min-width:90px">Quit</button>
+            <button class="btn btn-secondary btn-sm" id="quit-btn" style="padding:7px 16px;min-width:80px">Quit</button>
             <span style="font-weight:700;color:var(--primary-light)">Score: <span id="score-display">0</span></span>
           </div>
         </div>
@@ -94,7 +81,7 @@ Pages.game = function(el, { mode, level }) {
         <div id="action-row" style="margin-top:14px;display:none;gap:10px;flex-wrap:wrap;justify-content:center">
           <button class="btn btn-secondary btn-sm" id="hint-btn"
             style="width:auto;padding:9px 22px;border-color:rgba(255,183,77,0.4);color:var(--warning)">
-            Get Hint
+            Get Hint (${MAX_HINTS})
           </button>
           <button class="btn btn-secondary btn-sm" id="skip-btn"
             style="width:auto;padding:9px 22px">
@@ -193,29 +180,25 @@ Pages.game = function(el, { mode, level }) {
   }
 
   function updateHintButton() {
-    const hintBtn = el.querySelector('#hint-btn');
-    if (!hintBtn) return;
+    const btn = el.querySelector('#hint-btn');
+    if (!btn) return;
     const remaining = Math.max(0, MAX_HINTS - hintsUsed);
-    hintBtn.textContent = remaining > 0 ? `Get Hint (${remaining})` : 'No Hints Left';
-    hintBtn.disabled = remaining === 0 || answered;
-    hintBtn.style.opacity = (remaining === 0 || answered) ? '0.5' : '1';
+    btn.textContent = remaining > 0 ? `Get Hint (${remaining})` : 'No Hints Left';
+    btn.disabled    = remaining === 0 || answered;
+    btn.style.opacity = (remaining === 0 || answered) ? '0.5' : '1';
   }
 
-  // Hint handler — shows the final answer, mode-appropriate label
   function handleHint() {
     if (answered || hintUsed || hintsUsed >= MAX_HINTS) return;
-    hintUsed = true;
+    hintUsed  = true;
     hintsUsed += 1;
-
     const hintBox = el.querySelector('#hint-box');
-    const raw     = currentQ.hint || 'Try breaking the problem into smaller steps; focus on the operation shown.';
-
-    hintBox.textContent     = `Hint: ${raw}`;
-    hintBox.style.display   = 'block';
+    const raw     = currentQ.hint || 'Try breaking the problem into smaller steps.';
+    hintBox.textContent   = `Hint: ${raw}`;
+    hintBox.style.display = 'block';
     updateHintButton();
   }
 
-  // Multiple choice
   function handleMultiChoice(btn) {
     if (answered) return;
     stopTimer();
@@ -233,10 +216,9 @@ Pages.game = function(el, { mode, level }) {
         b.classList.add('wrong');
     });
 
-    processAnswer(chosen, isCorrect);
+    processAnswer(chosen, isCorrect, 'answered');
   }
 
-  // Type-in
   function handleTypeIn() {
     if (answered) return;
     const inp = el.querySelector('#typein-input');
@@ -251,10 +233,9 @@ Pages.game = function(el, { mode, level }) {
 
     const isCorrect = val.toLowerCase() === currentQ.correctAnswer.trim().toLowerCase();
     inp.style.borderColor = isCorrect ? 'var(--success)' : 'var(--error)';
-    processAnswer(val, isCorrect);
+    processAnswer(val, isCorrect, 'answered');
   }
 
-  // Skip
   function handleSkip() {
     if (answered) return;
     stopTimer();
@@ -263,8 +244,7 @@ Pages.game = function(el, { mode, level }) {
     skippedCount++;
     responses++;
 
-    el.querySelectorAll('.option-btn, #typein-input, #submit-typein')
-      .forEach(b => b.disabled = true);
+    el.querySelectorAll('.option-btn, #typein-input, #submit-typein').forEach(b => b.disabled = true);
 
     const timeTaken = Math.round((Date.now() - questionStart) / 1000);
     totalTime += timeTaken;
@@ -273,26 +253,23 @@ Pages.game = function(el, { mode, level }) {
 
     API.saveAnswer({
       sessionId,
+      questionId:     currentQ.questionId,
       questionNumber: questionNum,
-      questionText:   currentQ.questionText,
-      correctAnswer:  currentQ.correctAnswer,
       studentAnswer:  'SKIPPED',
       isCorrect:      false,
-      timeTaken
+      hintUsed,
+      timeTaken,
+      status:         'skipped'
     }).catch(() => {});
 
     showNextButton();
   }
 
-  async function processAnswer(studentAnswer, isCorrect) {
+  async function processAnswer(studentAnswer, isCorrect, status) {
     const timeTaken = Math.round((Date.now() - questionStart) / 1000);
     totalTime += timeTaken;
 
-    if (isCorrect) {
-      score += 10;
-      correctCount++;
-    }
-    answeredCount++;
+    if (isCorrect) { score += 10; correctCount++; }
     responses++;
     el.querySelector('#score-display').textContent = score;
 
@@ -300,18 +277,18 @@ Pages.game = function(el, { mode, level }) {
 
     API.saveAnswer({
       sessionId,
+      questionId:     currentQ.questionId,
       questionNumber: questionNum,
-      questionText:   currentQ.questionText,
-      correctAnswer:  currentQ.correctAnswer,
       studentAnswer,
       isCorrect,
-      timeTaken
+      hintUsed,
+      timeTaken,
+      status
     }).catch(() => {});
 
     showNextButton();
   }
 
-  // Shows the result panel with a button to reveal the full solution
   function renderOutcome(result) {
     const solEl   = el.querySelector('#solution-area');
     const correct = result === 'correct';
@@ -322,29 +299,38 @@ Pages.game = function(el, { mode, level }) {
       ? 'Correct!'
       : `${skipped ? 'Skipped' : timeout ? "Time's up" : 'Incorrect'} — Correct answer: ${currentQ.correctAnswer}`;
 
-    const panelClass = correct ? 'solution-panel' : 'solution-panel wrong-panel';
-
     solEl.innerHTML = `
-      <div class="${panelClass}">
-        <div style="display:flex;align-items:center;gap:8px;font-weight:700;margin-bottom:10px">
-          <span>${label}</span>
-        </div>
+      <div class="${correct ? 'solution-panel' : 'solution-panel wrong-panel'}">
+        <div style="font-weight:700;margin-bottom:10px">${label}</div>
         <div style="display:flex;gap:10px;flex-wrap:wrap">
           <button id="show-solution-btn" class="btn btn-secondary btn-sm" style="padding:7px 18px">Show Solution</button>
           <button id="tts-btn" class="btn btn-secondary btn-sm" style="padding:7px 18px">Read Aloud</button>
         </div>
-        <div id="tts-status" style="font-size:.78rem;color:var(--text-muted);margin-top:10px"></div>
-        <div id="solution-detail" style="margin-top:16px;display:none"></div>
+        <div id="tts-status" style="font-size:.78rem;color:var(--text-muted);margin-top:8px"></div>
+        <div id="solution-detail" style="margin-top:14px;display:none"></div>
       </div>`;
 
-    el.querySelector('#show-solution-btn').addEventListener('click', () => renderSolutionPanel(result));
+    el.querySelector('#show-solution-btn').addEventListener('click', () => {
+      const detail = el.querySelector('#solution-detail');
+      const steps  = currentQ.solutionSteps || 'No solution steps available.';
+      const html   = steps.split('\n').filter(l => l.trim()).map(line => {
+        if (line.startsWith('Step')) {
+          const c = line.indexOf(':');
+          if (c > 0) return `<div style="margin-bottom:6px"><strong>${line.slice(0,c+1)}</strong>${line.slice(c+1)}</div>`;
+        }
+        return `<div style="margin-bottom:6px">${line}</div>`;
+      }).join('');
+      detail.innerHTML = `<div style="padding:14px;border-radius:8px;background:var(--bg-card2);border:1px solid var(--border)">${html}</div>`;
+      detail.style.display = 'block';
+      el.querySelector('#show-solution-btn').style.display = 'none';
+    });
+
     el.querySelector('#tts-btn').addEventListener('click', () => {
-      const speaking = window.speechSynthesis?.speaking;
-      if (speaking) {
+      if (window.speechSynthesis?.speaking) {
         ttsStop();
         el.querySelector('#tts-status').textContent = 'Stopped.';
       } else {
-        const readText = `${label}. ${currentQ.solutionSteps.replace(/\n/g, '. ')}`;
+        const readText = `${label}. ${(currentQ.solutionSteps || '').replace(/\n/g, '. ')}`;
         el.querySelector('#tts-status').textContent = 'Reading aloud...';
         ttsSpeak(readText);
         if (ttsUtterance) {
@@ -358,69 +344,46 @@ Pages.game = function(el, { mode, level }) {
     });
   }
 
-  function renderSolutionPanel(result) {
-    const solEl   = el.querySelector('#solution-detail');
-    const steps   = currentQ.solutionSteps || 'No solution steps available.';
-    const lines   = steps.split('\n').filter(l => l.trim());
-    const stepsHtml = lines.map(line => {
-      if (line.startsWith('Step')) {
-        const colon = line.indexOf(':');
-        if (colon > 0) {
-          return `<div style="margin-bottom:6px"><strong>${line.slice(0, colon + 1)}</strong>${line.slice(colon + 1)}</div>`;
-        }
-      }
-      return `<div style="margin-bottom:6px">${line}</div>`;
-    }).join('');
-
-    solEl.innerHTML = `<div style="padding:16px;border-radius:10px;background:var(--bg-card2);border:1px solid var(--border)">${stepsHtml}</div>`;
-    solEl.style.display = 'block';
-    const btn = el.querySelector('#show-solution-btn');
-    if (btn) btn.style.display = 'none';
-  }
-
   function handleQuit() {
     if (!sessionId) return;
-    if (!window.confirm('Are you sure you want to quit the game? Your current progress will be saved.')) return;
+    if (!window.confirm('Are you sure you want to quit? Your progress will be saved.')) return;
     stopTimer();
     ttsStop();
     hideActionRow();
     el.querySelectorAll('.option-btn, #typein-input, #submit-typein').forEach(b => b.disabled = true);
-    el.querySelector('#quit-btn').disabled = true;
-    el.querySelector('#quit-btn').textContent = 'Quitting…';
-    awaitFinishAndNavigate();
+    el.querySelector('#quit-btn').disabled   = true;
+    el.querySelector('#quit-btn').textContent = 'Quitting...';
+    finishAndNavigate();
   }
 
-  async function awaitFinishAndNavigate() {
+  async function finishAndNavigate() {
     try {
       await API.finishSession({
-        sessionId,
-        score,
+        sessionId, score,
         totalQuestions: TOTAL_QUESTIONS,
         correctAnswers: correctCount,
-        timeTaken:      totalTime,
+        skippedAnswers: skippedCount,
+        hintsUsed,
+        timeTaken: totalTime
       });
     } catch { }
-    const unanswered = Math.max(0, TOTAL_QUESTIONS - responses);
-    const answered   = Math.max(0, responses - skippedCount);
     App.showPage('summary', {
       mode, level, score, correctCount,
       totalQuestions: TOTAL_QUESTIONS,
       timeTaken: totalTime,
       skippedCount,
-      unanswered,
-      answeredCount: answered,
+      unanswered: Math.max(0, TOTAL_QUESTIONS - responses),
+      answeredCount: Math.max(0, responses - skippedCount),
       sessionId
     });
   }
 
   function showNextButton() {
-    const nextArea    = el.querySelector('#next-area');
-    const nextBtn     = el.querySelector('#next-btn');
-
+    const nextArea = el.querySelector('#next-area');
+    const nextBtn  = el.querySelector('#next-btn');
     nextArea.style.display = 'block';
     const fresh = nextBtn.cloneNode(true);
     nextBtn.parentNode.replaceChild(fresh, nextBtn);
-
     if (questionNum >= TOTAL_QUESTIONS) {
       fresh.querySelector('#next-btn-text').textContent = 'See Results';
       fresh.addEventListener('click', finishGame);
@@ -430,7 +393,6 @@ Pages.game = function(el, { mode, level }) {
     }
   }
 
-  // Timer
   function startTimer() {
     stopTimer();
     const badge = el.querySelector('#timer-badge');
@@ -445,18 +407,18 @@ Pages.game = function(el, { mode, level }) {
           hideActionRow();
           skippedCount++;
           responses++;
-          el.querySelectorAll('.option-btn, #typein-input, #submit-typein')
-            .forEach(b => b.disabled = true);
+          el.querySelectorAll('.option-btn, #typein-input, #submit-typein').forEach(b => b.disabled = true);
           totalTime += timerSeconds();
           renderOutcome('timeout');
           API.saveAnswer({
             sessionId,
+            questionId:     currentQ.questionId,
             questionNumber: questionNum,
-            questionText:   currentQ.questionText,
-            correctAnswer:  currentQ.correctAnswer,
             studentAnswer:  'TIME_UP',
             isCorrect:      false,
-            timeTaken:      timerSeconds()
+            hintUsed,
+            timeTaken:      timerSeconds(),
+            status:         'timeout'
           }).catch(() => {});
           showNextButton();
         }
@@ -464,43 +426,18 @@ Pages.game = function(el, { mode, level }) {
     }, 1000);
   }
 
-  function stopTimer()     { clearInterval(timerInterval); }
-  function hideActionRow() {
-    const r = el.querySelector('#action-row');
-    if (r) r.style.display = 'none';
-  }
+  function stopTimer()    { clearInterval(timerInterval); }
+  function hideActionRow(){ const r = el.querySelector('#action-row'); if (r) r.style.display = 'none'; }
 
   function updateProgress() {
-    el.querySelector('#progress-bar').style.width =
-      `${((questionNum - 1) / TOTAL_QUESTIONS) * 100}%`;
-    el.querySelector('#q-counter').textContent = `${questionNum} / ${TOTAL_QUESTIONS}`;
+    el.querySelector('#progress-bar').style.width = `${((questionNum-1)/TOTAL_QUESTIONS)*100}%`;
+    el.querySelector('#q-counter').textContent    = `${questionNum} / ${TOTAL_QUESTIONS}`;
   }
 
   async function finishGame() {
     stopTimer();
     ttsStop();
     el.querySelector('#progress-bar').style.width = '100%';
-    try {
-      await API.finishSession({
-        sessionId,
-        score,
-        totalQuestions: TOTAL_QUESTIONS,
-        correctAnswers: correctCount,
-        timeTaken:      totalTime,
-      });
-    } catch { /* non-critical */ }
-
-    const unanswered = Math.max(0, TOTAL_QUESTIONS - responses);
-    const answered   = Math.max(0, responses - skippedCount);
-
-    App.showPage('summary', {
-      mode, level, score, correctCount,
-      totalQuestions: TOTAL_QUESTIONS,
-      timeTaken: totalTime,
-      skippedCount,
-      unanswered,
-      answeredCount: answered,
-      sessionId
-    });
+    await finishAndNavigate();
   }
 };

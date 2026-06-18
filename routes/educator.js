@@ -323,16 +323,24 @@ router.get('/export/students', async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: get students assigned to this educator.
-// Queries educator_student_map (ERD-aligned table name).
-// Falls back to all students if no assignments exist yet.
+// Returns all students (educator_student_map table has been removed).
 // ─────────────────────────────────────────────────────────────────────────────
 async function getMyStudents(eduId) {
+<<<<<<< HEAD
   // educator_student_map was removed from the schema; return all students.
   try {
     return await pool.query(
       "SELECT user_id, username, full_name, email FROM [user] WHERE role = 'student' ORDER BY full_name"
     );
   } catch (_err) {
+=======
+  // Return all students; educator_student_map table has been removed.
+  try {
+    return await pool.query(
+      "SELECT user_id, username, full_name, email FROM users WHERE role = 'student' ORDER BY full_name"
+    );
+  } catch {
+>>>>>>> eb0f918ab16e285c80b4089056cda86dc27cd092
     return [];
   }
 }

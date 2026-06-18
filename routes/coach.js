@@ -111,14 +111,20 @@ async function gatherStudentData(userId) {
   try {
     wrongRows = await pool.query(`
       SELECT TOP 10
-        a.question_text,
-        a.correct_answer,
+        q.question_text,
+        q.correct_answer,
         a.student_answer,
         s.mode,
         s.difficulty,
         a.time_taken_seconds
+<<<<<<< HEAD
       FROM answer a
       JOIN session s ON s.session_id = a.session_id
+=======
+      FROM user_answers a
+      JOIN questions q ON q.question_id = a.question_id
+      JOIN sessions s ON s.session_id = a.session_id
+>>>>>>> eb0f918ab16e285c80b4089056cda86dc27cd092
       WHERE s.user_id = ?
         AND a.is_correct = 0
       ORDER BY a.answer_id DESC
@@ -143,13 +149,19 @@ async function gatherStudentData(userId) {
   try {
     slowRows = await pool.query(`
       SELECT TOP 5
-        a.question_text,
+        q.question_text,
         a.time_taken_seconds,
         a.is_correct,
         s.mode,
         s.difficulty
+<<<<<<< HEAD
       FROM answer a
       JOIN session s ON s.session_id = a.session_id
+=======
+      FROM user_answers a
+      JOIN questions q ON q.question_id = a.question_id
+      JOIN sessions s ON s.session_id = a.session_id
+>>>>>>> eb0f918ab16e285c80b4089056cda86dc27cd092
       WHERE s.user_id = ?
       ORDER BY a.time_taken_seconds DESC
     `, [userId]);

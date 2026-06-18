@@ -104,16 +104,30 @@ Pages.sessionDetails = async function(el, { sessionId } = {}) {
           </div>
           <div style="margin-top:12px">
             <table class="history-table" style="width:100%">
-              <thead><tr><th>#</th><th>Question</th><th>Your Answer</th><th>Correct?</th><th>Time(s)</th></tr></thead>
+              <thead><tr>
+                <th>#</th>
+                <th>Question</th>
+                <th>Your Answer</th>
+                <th>Correct Answer</th>
+                <th>Result</th>
+                <th>Hint Used</th>
+                <th>Time (s)</th>
+              </tr></thead>
               <tbody>
-                ${answers.map((a, i) => `
-                  <tr>
+                ${answers.map((a, i) => {
+                  const statusLabel = a.is_correct ? 'Correct' : (a.status === 'skipped' ? 'Skipped' : (a.status === 'timeout' ? 'Timeout' : 'Wrong'));
+                  const statusColor = a.is_correct ? 'var(--success)' : (a.status === 'skipped' || a.status === 'timeout' ? 'var(--warning)' : 'var(--error)');
+                  const studentAns  = a.student_answer === 'SKIPPED' ? 'Skipped' : (a.student_answer === 'TIME_UP' ? 'Timed out' : (a.student_answer || 'None'));
+                  return `<tr>
                     <td>${a.question_number || (i+1)}</td>
-                    <td style="max-width:480px;white-space:normal">${a.question_text}</td>
-                    <td>${a.student_answer}</td>
-                    <td style="color:${a.is_correct ? 'var(--success)' : 'var(--error)'}">${a.is_correct ? 'Yes' : 'No'}</td>
-                    <td>${a.time_taken_seconds || a.time_taken || 0}</td>
-                  </tr>`).join('')}
+                    <td style="max-width:340px;white-space:normal">${a.question_text}</td>
+                    <td>${studentAns}</td>
+                    <td style="color:var(--success)">${a.correct_answer}</td>
+                    <td style="color:${statusColor};font-weight:600">${statusLabel}</td>
+                    <td>${a.hint_used ? 'Yes' : 'No'}</td>
+                    <td>${a.time_taken_seconds || 0}</td>
+                  </tr>`;
+                }).join('')}
               </tbody>
             </table>
           </div>
