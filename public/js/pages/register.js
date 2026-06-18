@@ -4,7 +4,7 @@ Pages.register = function(el) {
   el.innerHTML = `
     <div class="page">
       <div class="card">
-        <span class="app-logo">R</span>
+        <span class="app-logo"></span>
         <div class="stack-sm title-center" style="margin-bottom:28px">
           <h1 style="text-align:center;font-size:1.7rem">Create Account</h1>
           <p class="subtitle" style="text-align:center">Join MathGameApp today</p>
