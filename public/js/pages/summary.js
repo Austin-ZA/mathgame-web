@@ -1,5 +1,4 @@
 // public/js/pages/summary.js
-// Mirrors ScoreSummaryScreen.java
 
 Pages.summary = function(el, { mode, level, score, correctCount, totalQuestions, timeTaken, skippedCount = 0, unanswered = 0, answeredCount = 0, sessionId } = {}) {
   const accuracy = totalQuestions > 0 ? Math.round((correctCount / totalQuestions) * 100) : 0;
@@ -25,15 +24,13 @@ Pages.summary = function(el, { mode, level, score, correctCount, totalQuestions,
           </div>
         </div>
 
-        <!-- Grade removed per user request -->
-
         <!-- Stats -->
         <div class="card" style="background:var(--bg-card2);padding:16px 20px;margin-top:8px;margin-bottom:20px">
           <div class="stat-row">
             <span class="muted">Total Score</span>
             <span class="stat-value" style="color:var(--primary-light)">${score} pts</span>
           </div>
-                  <div class="stat-row">
+          <div class="stat-row">
             <span class="muted">Correct Answers</span>
             <span class="stat-value" style="color:var(--success)">${correctCount} / ${totalQuestions}</span>
           </div>
@@ -109,21 +106,17 @@ Pages.sessionDetails = async function(el, { sessionId } = {}) {
                 <th>Question</th>
                 <th>Your Answer</th>
                 <th>Correct Answer</th>
-                <th>Result</th>
                 <th>Hint Used</th>
                 <th>Time (s)</th>
               </tr></thead>
               <tbody>
                 ${answers.map((a, i) => {
-                  const statusLabel = a.is_correct ? 'Correct' : (a.status === 'skipped' ? 'Skipped' : (a.status === 'timeout' ? 'Timeout' : 'Wrong'));
-                  const statusColor = a.is_correct ? 'var(--success)' : (a.status === 'skipped' || a.status === 'timeout' ? 'var(--warning)' : 'var(--error)');
-                  const studentAns  = a.student_answer === 'SKIPPED' ? 'Skipped' : (a.student_answer === 'TIME_UP' ? 'Timed out' : (a.student_answer || 'None'));
+                  const studentAns = a.student_answer === 'SKIPPED' ? 'Skipped' : (a.student_answer === 'TIME_UP' ? 'Timed out' : (a.student_answer || 'None'));
                   return `<tr>
                     <td>${a.question_number || (i+1)}</td>
                     <td style="max-width:340px;white-space:normal">${a.question_text}</td>
                     <td>${studentAns}</td>
                     <td style="color:var(--success)">${a.correct_answer}</td>
-                    <td style="color:${statusColor};font-weight:600">${statusLabel}</td>
                     <td>${a.hint_used ? 'Yes' : 'No'}</td>
                     <td>${a.time_taken_seconds || 0}</td>
                   </tr>`;
@@ -134,7 +127,18 @@ Pages.sessionDetails = async function(el, { sessionId } = {}) {
         </div>
       </div>`;
 
-    el.querySelector('#sd-back').addEventListener('click', () => App.showPage('summary', { mode: session.mode, level: session.difficulty.includes('level') ? parseInt(session.difficulty.replace('level','')) : 1, score: session.score || 0, correctCount: session.correct_answers || 0, totalQuestions: session.total_questions || 0, timeTaken: session.time_taken_seconds || 0, skippedCount: 0, unanswered: 0, answeredCount: session.correct_answers || 0, sessionId }));
+    el.querySelector('#sd-back').addEventListener('click', () => App.showPage('summary', {
+      mode: session.mode,
+      level: session.difficulty.includes('level') ? parseInt(session.difficulty.replace('level','')) : 1,
+      score: session.score || 0,
+      correctCount: session.correct_answers || 0,
+      totalQuestions: session.total_questions || 0,
+      timeTaken: session.time_taken_seconds || 0,
+      skippedCount: 0,
+      unanswered: 0,
+      answeredCount: session.correct_answers || 0,
+      sessionId
+    }));
   } catch (e) {
     const message = e?.message || 'Could not load session details.';
     el.innerHTML = `<div class="page"><div class="card"><p class="error-msg">${message}</p><button class="btn btn-secondary" id="sd-back">Back</button></div></div>`;

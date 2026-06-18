@@ -1,0 +1,38 @@
+[33made48d0[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m, [m[1;31morigin/HEAD[m[33m)[m Final and last commit
+[33m4183014[m Austin's second commit
+[33m28d5125[m Austin's commit
+[33m4e15867[m Final commit of the day
+[33m1a8a09c[m Updated
+[33m33f5dc6[m trigger redeploy
+[33m9188084[m Fix header
+[33m49fb9a4[m final
+[33m7844e35[m fix db code
+[33m2fc26ab[m everything
+[33mc985003[m 18 June 26
+[33mcbbd141[m Update game.js
+[33m51e9615[m Update auth.js
+[33m4972055[m Fix server
+[33m6cdaf46[m Fixed history and tables
+[33mace6cd5[m 18 June Commit
+[33m185df93[m 18 June Commit
+[33meb0f918[m Changed db
+[33me7d590e[m Commit everything
+[33m19864c5[m Add user guides and update educator/admin features
+[33mefe6451[m Improve error messaging: expose actual backend errors instead of generic messages
+[33m91ca0bd[m Fix game history navigation, hint UI, login logo, and AI coach response parsing
+[33mdb12a42[m Fix history click by using session_id directly on history rows
+[33m30e0888[m UX: guidance-only hints, remove grade badge, start-button landing, history details clickable
+[33m80046c1[m Feature: game flow fixes — single-click mode->level, quit/show-solution, forgot-password UI, session details, history grouping
+[33m384e029[m Remove node_modules from tracking
+[33mf5dc222[m Remove .env from tracking
+[33m115e0b2[m Fix AI coach: switch to Anthropic API, correct model name, add .env to gitignore
+[33m53b7705[m Initial commit: MathGameApp full project
+[33m4b8e170[m Initial commit: MathGameApp web
+[33m71e6bf3[m Switch app to dynamic DB router and use Azure SQL when DB_TYPE=azuresql
+[33m257dc79[m Commit workspace updates
+[33m7af1e4c[m Merge branch 'main' of https://github.com/Austin-ZA/mathgame-web
+[33md1ec803[m update Azure settings
+[33m5a4cc27[m set azure encrypt settings to true
+[33m3109797[m Add environment variables for Azure SQL configuration
+[33m5692c8d[m push initial changes
+[33m17c70c5[m Initial commit
