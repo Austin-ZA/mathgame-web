@@ -15,6 +15,8 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 app.use(express.static(path.join(__dirname, 'public')));
 
+app.set('trust proxy', 1); // Required for Render/cloud reverse proxy
+
 app.use(session({
   secret: process.env.SESSION_SECRET || 'mathgame-secret-key-change-in-production',
   resave: false,
@@ -58,7 +60,7 @@ async function start() {
     console.log(`[DB] Connection attempt ${attempt}/3...`);
     dbOk = await testConnection();
     if (dbOk) break;
-    if (attempt < 3) await new Promise(r => setTimeout(r, 5000)); // wait 5s between retries
+    if (attempt < 3) await new Promise(r => setTimeout(r, 5000));
   }
 
   if (!dbOk) {
@@ -70,8 +72,6 @@ async function start() {
     console.error(`     AZURE_SQL_USER     = ${process.env.AZURE_SQL_USER ? '(set)' : '(missing)'}`);
     console.error(`     AZURE_SQL_PASSWORD = ${process.env.AZURE_SQL_PASSWORD ? '(set)' : '(missing)'}`);
     console.error('[DB] Server is still running but all DB operations will fail.');
-    // Do NOT call process.exit(1) — keep server alive so Render deploy succeeds
-    // and so you can fix env vars without redeploying code.
   } else {
     console.log('[DB] Database connection established successfully.');
   }
