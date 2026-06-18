@@ -1,365 +1,492 @@
-// routes/game.js
-// Game session API — stores every generated question in questions table
-// and every answer in user_answers table, then updates performance_summary,
-// leaderboard_snapshots and notifications after each session finishes.
+// public/js/pages/game.js
+//
+// QUESTION SAVE FLOW:
+//   1. API.getQuestion()  → server generates question, saves it to questions
+//                           table, returns { ...question, questionId }
+//   2. frontend stores    currentQ.questionId
+//   3. API.saveAnswer()   → sends { sessionId, questionId, ... } to server
+//                           → server inserts into user_answers with question_id FK
+//   4. API.finishSession()→ marks session complete, updates summaries
+//
+// HISTORY FLOW:
+//   History button → App.showPage('sessionDetails', { sessionId })
+//   → API.getSession(sessionId) → server does:
+//       SELECT ... FROM user_answers ua
+//       JOIN questions q ON q.question_id = ua.question_id
+//       WHERE ua.session_id = ?
+//   → returns every question + student answer from the DB
 
-const express = require('express');
-const router  = express.Router();
-const { pool } = require('../db');
-const { generateComputational, generateAlgebra, generateBinary } = require('./questionGenerator');
-const { requireAuth } = require('../middleware/auth');
+Pages.game = function(el, { mode, level }) {
+  const TOTAL_QUESTIONS = 10;
+  const MAX_HINTS       = 3;
 
-router.use(requireAuth);
-
-function toInt(v)   { const n = parseInt(v);   return isNaN(n) ? 0 : n; }
-function toFloat(v) { const n = parseFloat(v); return isNaN(n) ? 0 : n; }
-function toStr(v)   { return (v === null || v === undefined || v === 'NULL') ? null : String(v); }
-
-// ── POST /api/game/start ───────────────────────────────────────────────────
-router.post('/start', async (req, res) => {
-  const { mode, level } = req.body;
-  const validModes = ['computational', 'algebra', 'binary'];
-  if (!validModes.includes(mode))
-    return res.status(400).json({ error: 'Invalid mode.' });
-
-  const difficulty = mode === 'binary' ? 'level1' : `level${level || 1}`;
-  try {
-<<<<<<< HEAD
-      const result = await pool.query(
-        'INSERT INTO session (user_id, mode, difficulty) OUTPUT INSERTED.session_id VALUES (?, ?, ?)',
-=======
-    const result = await pool.query(
-      'INSERT INTO sessions (user_id, mode, difficulty, completed) OUTPUT INSERTED.session_id VALUES (?, ?, ?, 0)',
->>>>>>> eb0f918ab16e285c80b4089056cda86dc27cd092
-      [req.session.user.user_id, mode, difficulty]
-    );
-    const sessionId = result[0]?.session_id;
-    if (!sessionId) throw new Error('No session_id returned from INSERT');
-
-    // Log activity
-    await logActivity(req.session.user.user_id, 'SESSION_START',
-      `Started ${mode} session (${difficulty})`, null);
-
-    res.json({ sessionId });
-  } catch (err) {
-    console.error('[game] Start session error:', err.message);
-    res.status(500).json({ error: 'Could not start session.' });
+  function timerSeconds() {
+    const lvl = parseInt(level) || 1;
+    return lvl === 1 ? 40 : lvl === 2 ? 60 : lvl === 3 ? 80 : lvl === 4 ? 100 : 150;
   }
-});
 
-// ── GET /api/game/question ─────────────────────────────────────────────────
-// Generates a question, upserts it into questions table, returns with question_id
-router.get('/question', async (req, res) => {
-  const { mode, level } = req.query;
-  let q;
-  if (mode === 'computational')  q = generateComputational(parseInt(level) || 1);
-  else if (mode === 'algebra')   q = generateAlgebra(parseInt(level) || 1);
-  else if (mode === 'binary')    q = generateBinary();
-  else return res.status(400).json({ error: 'Invalid mode.' });
+  let sessionId    = null;
+  let currentQ     = null;   // holds { questionText, correctAnswer, questionId, ... }
+  let questionNum  = 0;
+  let score        = 0;
+  let correctCount = 0;
+  let answered     = false;
+  let timerInterval= null;
+  let timeLeft     = timerSeconds();
+  let questionStart= null;
+  let totalTime    = 0;
+  let hintUsed     = false;  // per-question flag
+  let hintsUsed    = 0;      // session total
+  let skippedCount = 0;
+  let responses    = 0;
 
-  const difficulty = mode === 'binary' ? 'level1' : `level${level || 1}`;
+  // TTS
+  let ttsUtterance = null;
+  function ttsSpeak(text) {
+    if (!window.speechSynthesis) return;
+    window.speechSynthesis.cancel();
+    ttsUtterance = new SpeechSynthesisUtterance(text);
+    ttsUtterance.rate = 0.92;
+    ttsUtterance.onend = () => updateTtsBtn(false);
+    window.speechSynthesis.speak(ttsUtterance);
+    updateTtsBtn(true);
+  }
+  function ttsStop() {
+    if (window.speechSynthesis) window.speechSynthesis.cancel();
+    updateTtsBtn(false);
+  }
+  function updateTtsBtn(speaking) {
+    const btn = el.querySelector('#tts-btn');
+    if (!btn) return;
+    btn.textContent = speaking ? 'Stop Reading' : 'Read Aloud';
+  }
 
-  try {
-    // Try to find an existing row for this exact question text
-    let rows = await pool.query(
-      'SELECT question_id FROM questions WHERE mode=? AND difficulty=? AND question_text=?',
-      [mode, difficulty, q.questionText]
-    );
+  const modeLabel = { computational:'Computational', algebra:'Algebra', binary:'Binary' }[mode] || mode;
 
-    let questionId;
-    if (rows.length > 0) {
-      questionId = toStr(rows[0].question_id);
-    } else {
-      // Insert new question
-      const optionsJson = q.isMultipleChoice ? JSON.stringify(q.options) : null;
-      const ins = await pool.query(
-        'INSERT INTO questions (mode, difficulty, question_text, correct_answer, hint_text, solution_steps, is_multiple_choice, options_json) OUTPUT INSERTED.question_id VALUES (?,?,?,?,?,?,?,?)',
-        [mode, difficulty, q.questionText, q.correctAnswer,
-         q.hint || '', q.solutionSteps || '',
-         q.isMultipleChoice ? 1 : 0,
-         optionsJson]
-      );
-      questionId = toStr(ins[0]?.question_id);
+  el.innerHTML = `
+    <div style="min-height:100vh;background:linear-gradient(145deg,var(--bg-dark),var(--bg-card))">
+      <div class="game-header">
+        <span style="font-weight:700;font-size:.9rem;min-width:90px">
+          <span id="q-counter">1 / ${TOTAL_QUESTIONS}</span>
+        </span>
+        <div class="progress-bar-track">
+          <div class="progress-bar-fill" id="progress-bar" style="width:0%"></div>
+        </div>
+        <div class="timer-badge" id="timer-badge">${timerSeconds()}s</div>
+      </div>
+
+      <div class="game-body">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;gap:12px;flex-wrap:wrap">
+          <span class="muted" style="font-size:.85rem;text-transform:capitalize">${modeLabel} — Level ${level}</span>
+          <div style="display:flex;gap:10px;align-items:center">
+            <button class="btn btn-secondary btn-sm" id="quit-btn" style="padding:7px 16px;min-width:80px">Quit</button>
+            <span style="font-weight:700;color:var(--primary-light)">Score: <span id="score-display">0</span></span>
+          </div>
+        </div>
+
+        <div class="question-card" id="question-card">
+          <div class="loading-center"><div class="spinner"></div></div>
+        </div>
+
+        <div id="answer-area"></div>
+
+        <div id="hint-area" style="margin-top:12px;display:none">
+          <div id="hint-box"
+            style="padding:12px 16px;background:var(--bg-card2);border:1px solid rgba(255,183,77,0.35);
+                   border-radius:8px;font-size:.88rem;color:var(--warning);display:none">
+          </div>
+        </div>
+
+        <div id="action-row" style="margin-top:14px;display:none;gap:10px;flex-wrap:wrap;justify-content:center">
+          <button class="btn btn-secondary btn-sm" id="hint-btn"
+            style="width:auto;padding:9px 22px;border-color:rgba(255,183,77,0.4);color:var(--warning)">
+            Get Hint (${MAX_HINTS})
+          </button>
+          <button class="btn btn-secondary btn-sm" id="skip-btn" style="width:auto;padding:9px 22px">
+            Skip Question
+          </button>
+        </div>
+
+        <div id="solution-area" style="margin-top:12px"></div>
+
+        <div id="next-area" style="margin-top:16px;display:none">
+          <button class="btn btn-primary" id="next-btn">
+            <span id="next-btn-text">Next Question</span>
+          </button>
+        </div>
+      </div>
+    </div>`;
+
+  // ── Boot ────────────────────────────────────────────────────────────────
+  (async () => {
+    try {
+      const res = await API.startSession({ mode, level });
+      sessionId = res.sessionId;
+      loadQuestion();
+    } catch (e) {
+      el.querySelector('#question-card').innerHTML =
+        `<p class="error-msg">Could not start session: ${e.message}</p>`;
     }
+  })();
 
-    res.json({ ...q, questionId });
-  } catch (err) {
-    // Even if DB insert fails, still return the question so game is not blocked
-    console.error('[game] Question upsert error:', err.message);
-    res.json({ ...q, questionId: null });
-  }
-});
+  // ── Load next question ───────────────────────────────────────────────────
+  async function loadQuestion() {
+    if (questionNum >= TOTAL_QUESTIONS) { finishGame(); return; }
 
-// ── POST /api/game/answer ──────────────────────────────────────────────────
-// Saves one answer to user_answers (linked to questions via question_id).
-router.post('/answer', async (req, res) => {
-  const {
-    sessionId, questionId, questionNumber,
-    studentAnswer, isCorrect, hintUsed, timeTaken, status
-  } = req.body;
+    ttsStop();
+    answered      = false;
+    hintUsed      = false;
+    timeLeft      = timerSeconds();
+    questionStart = Date.now();
+    questionNum++;
 
-  if (!sessionId || !questionId)
-    return res.status(400).json({ error: 'sessionId and questionId are required.' });
+    updateProgress();
+    el.querySelector('#answer-area').innerHTML    = '';
+    el.querySelector('#solution-area').innerHTML  = '';
+    el.querySelector('#hint-area').style.display  = 'none';
+    el.querySelector('#hint-box').style.display   = 'none';
+    el.querySelector('#hint-box').textContent     = '';
+    el.querySelector('#next-area').style.display  = 'none';
+    el.querySelector('#action-row').style.display = 'none';
+    el.querySelector('#timer-badge').className    = 'timer-badge';
+    el.querySelector('#timer-badge').textContent  = `${timerSeconds()}s`;
+    el.querySelector('#question-card').innerHTML  =
+      `<div class="loading-center"><div class="spinner"></div></div>`;
 
-  const correct     = typeof isCorrect === 'boolean' ? isCorrect : false;
-  const answerStatus = ['answered','skipped','timeout'].includes(status) ? status : 'answered';
-  const hint        = hintUsed ? 1 : 0;
+    try {
+      // API.getQuestion → server saves question to DB → returns question + questionId
+      currentQ = await API.getQuestion(mode, level);
 
-  try {
-<<<<<<< HEAD
-      await pool.query(
-        'INSERT INTO answer (session_id, question_number, question_text, correct_answer, student_answer, is_correct, time_taken_seconds) VALUES (?,?,?,?,?,?,?)',
-      [sessionId, questionNumber || 0, questionText, correctAnswer, studentAnswer, correct, timeTaken || 0]
-=======
-    await pool.query(
-      'INSERT INTO user_answers (session_id, question_id, question_number, student_answer, hint_used, is_correct, status, time_taken_seconds) VALUES (?,?,?,?,?,?,?,?)',
-      [sessionId, questionId, questionNumber || 1,
-       studentAnswer || null, hint, correct ? 1 : 0,
-       answerStatus, toInt(timeTaken)]
->>>>>>> eb0f918ab16e285c80b4089056cda86dc27cd092
-    );
-    res.json({ success: true });
-  } catch (err) {
-    console.error('[game] Save answer error:', err.message);
-    res.status(500).json({ error: 'Could not save answer.' });
-  }
-});
+      if (!currentQ.questionId) {
+        // DB save failed on server side but question was still returned
+        console.warn('[game] Question loaded without DB id — answer will not be linked to questions table.');
+      }
 
-// ── POST /api/game/finish ──────────────────────────────────────────────────
-// Finalises session, then updates performance_summary, leaderboard, notifications.
-router.post('/finish', async (req, res) => {
-  const { sessionId, score, totalQuestions, correctAnswers,
-          skippedAnswers, hintsUsed, timeTaken } = req.body;
-  const userId = req.session.user.user_id;
-
-  const safeScore    = toInt(score);
-  const safeTotalQ   = toInt(totalQuestions);
-  const safeCorrect  = toInt(correctAnswers);
-  const safeSkipped  = toInt(skippedAnswers);
-  const safeHints    = toInt(hintsUsed);
-  const safeTime     = toInt(timeTaken);
-
-  try {
-    // 1. Mark session complete
-    await pool.query(
-<<<<<<< HEAD
-      'UPDATE session SET score=?, total_questions=?, correct_answers=?, time_taken_seconds=? WHERE session_id=? AND user_id=?',
-      [
-        parseInt(score)          || 0,
-        parseInt(totalQuestions) || 0,
-        parseInt(correctAnswers) || 0,
-        parseInt(timeTaken)      || 0,
-        sessionId,
-        req.session.user.user_id
-      ]
-=======
-      'UPDATE sessions SET score=?, total_questions=?, correct_answers=?, skipped_answers=?, hints_used=?, time_taken_seconds=?, completed=1 WHERE session_id=? AND user_id=?',
-      [safeScore, safeTotalQ, safeCorrect, safeSkipped, safeHints, safeTime, sessionId, userId]
->>>>>>> eb0f918ab16e285c80b4089056cda86dc27cd092
-    );
-
-    // 2. Update performance_summary (upsert pattern via two queries)
-    const accuracy = safeTotalQ > 0 ? (safeCorrect / safeTotalQ) * 100 : 0;
-
-    const existing = await pool.query(
-      'SELECT summary_id, total_sessions, total_score, best_score FROM performance_summary WHERE user_id=?',
-      [userId]
-    );
-
-    if (existing.length === 0) {
-      await pool.query(
-        'INSERT INTO performance_summary (user_id, total_sessions, total_score, average_score, average_accuracy, best_score, last_played) VALUES (?,1,?,?,?,?,GETDATE())',
-        [userId, safeScore, safeScore, Math.round(accuracy), safeScore]
-      );
-    } else {
-      const prev     = existing[0];
-      const newTotal = toInt(prev.total_sessions) + 1;
-      const newTScore = toInt(prev.total_score) + safeScore;
-      const newAvgScore = Math.round(newTScore / newTotal);
-      const newBest  = Math.max(toInt(prev.best_score), safeScore);
-
-      // Recalculate average accuracy from sessions table
-      const accRows = await pool.query(
-        'SELECT AVG(CASE WHEN total_questions>0 THEN CAST(correct_answers AS FLOAT)/total_questions*100 ELSE NULL END) AS avg_acc FROM sessions WHERE user_id=? AND completed=1',
-        [userId]
-      );
-      const newAvgAcc = Math.round(toFloat(accRows[0]?.avg_acc));
-
-      await pool.query(
-        'UPDATE performance_summary SET total_sessions=?, total_score=?, average_score=?, average_accuracy=?, best_score=?, last_played=GETDATE(), updated_at=GETDATE() WHERE user_id=?',
-        [newTotal, newTScore, newAvgScore, newAvgAcc, newBest, userId]
-      );
+      renderQuestion();
+      startTimer();
+      el.querySelector('#action-row').style.display = 'flex';
+      el.querySelector('#hint-area').style.display  = 'block';
+    } catch (e) {
+      el.querySelector('#question-card').innerHTML =
+        `<p class="error-msg">Could not load question: ${e.message}</p>`;
     }
+  }
 
-    // 3. Upsert today's leaderboard snapshot
-    const today = new Date().toISOString().slice(0, 10);
-    const lbExisting = await pool.query(
-      'SELECT snapshot_id, total_score, total_sessions FROM leaderboard_snapshots WHERE user_id=? AND snapshot_date=?',
-      [userId, today]
-    );
+  // ── Render question ───────────────────────────────────────────────────────
+  function renderQuestion() {
+    el.querySelector('#question-card').innerHTML =
+      `<p class="question-text">${currentQ.questionText}</p>`;
 
-    if (lbExisting.length === 0) {
-      await pool.query(
-        'INSERT INTO leaderboard_snapshots (user_id, snapshot_date, total_score, total_sessions, avg_accuracy) VALUES (?,?,?,1,?)',
-        [userId, today, safeScore, Math.round(accuracy)]
+    const answerEl = el.querySelector('#answer-area');
+    if (currentQ.isMultipleChoice) {
+      answerEl.innerHTML = `
+        <div class="options-grid" id="options-grid">
+          ${currentQ.options.map((opt, i) =>
+            `<button class="option-btn" data-opt="${i}">${opt}</button>`
+          ).join('')}
+        </div>`;
+      answerEl.querySelectorAll('.option-btn').forEach(btn =>
+        btn.addEventListener('click', () => handleMultiChoice(btn))
       );
     } else {
-      const lb = lbExisting[0];
-      const newDayScore = toInt(lb.total_score) + safeScore;
-      const newDaySess  = toInt(lb.total_sessions) + 1;
-
-      // Recalculate today's accuracy
-      const todayAccRows = await pool.query(
-        "SELECT AVG(CASE WHEN total_questions>0 THEN CAST(correct_answers AS FLOAT)/total_questions*100 ELSE NULL END) AS avg_acc FROM sessions WHERE user_id=? AND completed=1 AND CAST(played_at AS DATE)=CAST(GETDATE() AS DATE)",
-        [userId]
-      );
-      const todayAcc = Math.round(toFloat(todayAccRows[0]?.avg_acc));
-
-      await pool.query(
-        'UPDATE leaderboard_snapshots SET total_score=?, total_sessions=?, avg_accuracy=?, updated_at=GETDATE() WHERE user_id=? AND snapshot_date=?',
-        [newDayScore, newDaySess, todayAcc, userId, today]
-      );
+      answerEl.innerHTML = `
+        <div class="typein-area">
+          <input type="text" id="typein-input" placeholder="Type your answer here..." autocomplete="off" />
+          <button class="btn btn-primary btn-sm" id="submit-typein" style="white-space:nowrap">Submit</button>
+        </div>`;
+      const inp = answerEl.querySelector('#typein-input');
+      inp.focus();
+      inp.addEventListener('keydown', e => { if (e.key === 'Enter') handleTypeIn(); });
+      answerEl.querySelector('#submit-typein').addEventListener('click', handleTypeIn);
     }
 
-    // Rebuild rank positions for today
-    await pool.query(
-      "UPDATE leaderboard_snapshots SET rank_position = r.rn FROM leaderboard_snapshots ls JOIN (SELECT snapshot_id, ROW_NUMBER() OVER (PARTITION BY snapshot_date ORDER BY total_score DESC) AS rn FROM leaderboard_snapshots WHERE snapshot_date=?) r ON ls.snapshot_id=r.snapshot_id WHERE ls.snapshot_date=?",
-      [today, today]
-    ).catch(() => {}); // non-fatal if rank update fails
-
-    // 4. Create notification
-    const accLabel = accuracy >= 80 ? 'Great work!' : accuracy >= 50 ? 'Keep it up!' : 'Keep practising!';
-    await pool.query(
-      "INSERT INTO notifications (user_id, type, title, body) VALUES (?,'session_complete','Session Complete',?)",
-      [userId, `You scored ${safeScore} pts with ${Math.round(accuracy)}% accuracy. ${accLabel}`]
-    );
-
-    // 5. Log activity
-    await logActivity(userId, 'SESSION_FINISH',
-      `Completed session ${sessionId} — score ${safeScore}, accuracy ${Math.round(accuracy)}%`, null);
-
-    res.json({ success: true });
-  } catch (err) {
-    console.error('[game] Finish session error:', err.message);
-    res.status(500).json({ error: 'Could not finalise session.' });
+    el.querySelector('#hint-btn').onclick = handleHint;
+    el.querySelector('#skip-btn').onclick = handleSkip;
+    el.querySelector('#quit-btn').onclick = handleQuit;
+    updateHintButton();
   }
-});
 
-// ── GET /api/game/history ──────────────────────────────────────────────────
-// Returns sessions for the last N days grouped for the history page.
-router.get('/history', async (req, res) => {
-  const days = toInt(req.query.days) || 7;
-  const userId = req.session.user.user_id;
-  try {
-    const rows = await pool.query(
-<<<<<<< HEAD
-        'SELECT TOP 100 * FROM session WHERE user_id = ? AND played_at >= DATEADD(day, -?, GETDATE()) ORDER BY played_at DESC',
-      [req.session.user.user_id, days]
-=======
-      'SELECT TOP 200 session_id, mode, difficulty, score, total_questions, correct_answers, skipped_answers, hints_used, time_taken_seconds, completed, played_at FROM sessions WHERE user_id=? AND played_at >= DATEADD(day,-?,GETDATE()) ORDER BY played_at DESC',
-      [userId, days]
->>>>>>> eb0f918ab16e285c80b4089056cda86dc27cd092
-    );
-    res.json(rows.map(r => ({
-      session_id:         toStr(r.session_id),
-      mode:               toStr(r.mode),
-      difficulty:         toStr(r.difficulty),
-      score:              toInt(r.score),
-      total_questions:    toInt(r.total_questions),
-      correct_answers:    toInt(r.correct_answers),
-      skipped_answers:    toInt(r.skipped_answers),
-      hints_used:         toInt(r.hints_used),
-      time_taken_seconds: toInt(r.time_taken_seconds),
-      completed:          r.completed === '1' || r.completed === 1,
-      played_at:          toStr(r.played_at),
-    })));
-  } catch (err) {
-    console.error('[game] history error:', err.message);
-    res.status(500).json({ error: 'Could not fetch history.' });
+  function updateHintButton() {
+    const btn = el.querySelector('#hint-btn');
+    if (!btn) return;
+    const remaining = Math.max(0, MAX_HINTS - hintsUsed);
+    btn.textContent = remaining > 0 ? `Get Hint (${remaining})` : 'No Hints Left';
+    btn.disabled    = remaining === 0 || answered;
+    btn.style.opacity = (remaining === 0 || answered) ? '0.5' : '1';
   }
-});
 
-// ── GET /api/game/session/:id ──────────────────────────────────────────────
-// Returns session header + all answers joined to questions table.
-router.get('/session/:id', async (req, res) => {
-  const sessionId = req.params.id;
-  const userId    = req.session.user.user_id;
-  try {
-<<<<<<< HEAD
-    const sessions = await pool.query('SELECT * FROM session WHERE session_id = ? AND user_id = ?', [sessionId, req.session.user.user_id]);
-    if (!sessions || sessions.length === 0) return res.status(404).json({ error: 'Session not found.' });
-    const session = sessions[0];
-    const answers = await pool.query('SELECT * FROM answer WHERE session_id = ? ORDER BY question_number, answer_id', [sessionId]);
-    res.json({ session, answers });
-=======
-    const sessions = await pool.query(
-      'SELECT * FROM sessions WHERE session_id=? AND user_id=?',
-      [sessionId, userId]
-    );
-    if (!sessions || sessions.length === 0)
-      return res.status(404).json({ error: 'Session not found.' });
+  // ── Hint ──────────────────────────────────────────────────────────────────
+  function handleHint() {
+    if (answered || hintUsed || hintsUsed >= MAX_HINTS) return;
+    hintUsed  = true;
+    hintsUsed += 1;
+    const hintBox = el.querySelector('#hint-box');
+    hintBox.textContent   = `Hint: ${currentQ.hint || 'Try breaking the problem into smaller steps.'}`;
+    hintBox.style.display = 'block';
+    updateHintButton();
+  }
 
-    const session = sessions[0];
+  // ── Multiple choice ───────────────────────────────────────────────────────
+  function handleMultiChoice(btn) {
+    if (answered) return;
+    stopTimer();
+    answered = true;
+    hideActionRow();
 
-    // Join user_answers with questions to get full question text + correct answer
-    const answers = await pool.query(
-      `SELECT ua.answer_id, ua.question_number, ua.student_answer,
-              ua.hint_used, ua.is_correct, ua.status, ua.time_taken_seconds, ua.answered_at,
-              q.question_text, q.correct_answer, q.hint_text, q.solution_steps,
-              q.is_multiple_choice, q.options_json
-       FROM user_answers ua
-       JOIN questions q ON q.question_id = ua.question_id
-       WHERE ua.session_id = ?
-       ORDER BY ua.question_number, ua.answer_id`,
-      [sessionId]
-    );
+    const chosen    = currentQ.options[btn.dataset.opt];
+    const isCorrect = chosen.trim().toLowerCase() === currentQ.correctAnswer.trim().toLowerCase();
 
-    res.json({
-      session: {
-        session_id:         toStr(session.session_id),
-        mode:               toStr(session.mode),
-        difficulty:         toStr(session.difficulty),
-        score:              toInt(session.score),
-        total_questions:    toInt(session.total_questions),
-        correct_answers:    toInt(session.correct_answers),
-        skipped_answers:    toInt(session.skipped_answers),
-        hints_used:         toInt(session.hints_used),
-        time_taken_seconds: toInt(session.time_taken_seconds),
-        completed:          session.completed === '1' || session.completed === 1,
-        played_at:          toStr(session.played_at),
-      },
-      answers: answers.map(a => ({
-        answer_id:          toStr(a.answer_id),
-        question_number:    toInt(a.question_number),
-        question_text:      toStr(a.question_text),
-        correct_answer:     toStr(a.correct_answer),
-        student_answer:     toStr(a.student_answer),
-        hint_text:          toStr(a.hint_text),
-        solution_steps:     toStr(a.solution_steps),
-        is_multiple_choice: a.is_multiple_choice === '1' || a.is_multiple_choice === 1,
-        options_json:       toStr(a.options_json),
-        hint_used:          a.hint_used === '1' || a.hint_used === 1,
-        is_correct:         a.is_correct === '1' || a.is_correct === 1,
-        status:             toStr(a.status),
-        time_taken_seconds: toInt(a.time_taken_seconds),
-        answered_at:        toStr(a.answered_at),
-      }))
+    el.querySelectorAll('.option-btn').forEach(b => {
+      b.disabled = true;
+      const val = currentQ.options[b.dataset.opt];
+      if (val.trim().toLowerCase() === currentQ.correctAnswer.trim().toLowerCase())
+        b.classList.add('correct');
+      else if (b === btn && !isCorrect)
+        b.classList.add('wrong');
     });
->>>>>>> eb0f918ab16e285c80b4089056cda86dc27cd092
-  } catch (err) {
-    console.error('[game] Get session error:', err.message);
-    res.status(500).json({ error: `Failed to fetch session: ${err.message}` });
+
+    processAnswer(chosen, isCorrect, 'answered');
   }
-});
 
-// ── Helper: write to admin_activity_log ───────────────────────────────────
-async function logActivity(actorId, actionType, description, targetUserId) {
-  try {
-    await pool.query(
-      'INSERT INTO admin_activity_log (actor_id, action_type, description, target_user_id) VALUES (?,?,?,?)',
-      [actorId, actionType, description, targetUserId || null]
-    );
-  } catch { /* never crash the caller */ }
-}
+  // ── Type-in ───────────────────────────────────────────────────────────────
+  function handleTypeIn() {
+    if (answered) return;
+    const inp = el.querySelector('#typein-input');
+    if (!inp) return;
+    const val = inp.value.trim();
+    if (!val) { inp.focus(); return; }
 
-module.exports = router;
+    stopTimer();
+    answered = true;
+    hideActionRow();
+    inp.disabled = true;
+    el.querySelector('#submit-typein').disabled = true;
+
+    const isCorrect = val.toLowerCase() === currentQ.correctAnswer.trim().toLowerCase();
+    inp.style.borderColor = isCorrect ? 'var(--success)' : 'var(--error)';
+    processAnswer(val, isCorrect, 'answered');
+  }
+
+  // ── Skip ──────────────────────────────────────────────────────────────────
+  function handleSkip() {
+    if (answered) return;
+    stopTimer();
+    answered = true;
+    hideActionRow();
+    skippedCount++;
+    responses++;
+
+    el.querySelectorAll('.option-btn, #typein-input, #submit-typein').forEach(b => b.disabled = true);
+
+    const timeTaken = Math.round((Date.now() - questionStart) / 1000);
+    totalTime += timeTaken;
+
+    renderOutcome('skipped');
+
+    // Save to user_answers via API — questionId links back to questions table
+    API.saveAnswer({
+      sessionId,
+      questionId:     currentQ.questionId,
+      questionNumber: questionNum,
+      studentAnswer:  'SKIPPED',
+      isCorrect:      false,
+      hintUsed,
+      timeTaken,
+      status:         'skipped'
+    }).catch(err => console.error('[saveAnswer/skip]', err.message));
+
+    showNextButton();
+  }
+
+  // ── Process a submitted answer ─────────────────────────────────────────────
+  async function processAnswer(studentAnswer, isCorrect, status) {
+    const timeTaken = Math.round((Date.now() - questionStart) / 1000);
+    totalTime += timeTaken;
+
+    if (isCorrect) { score += 10; correctCount++; }
+    responses++;
+    el.querySelector('#score-display').textContent = score;
+
+    renderOutcome(isCorrect ? 'correct' : 'wrong');
+
+    // Save to user_answers — questionId is the FK into questions table
+    API.saveAnswer({
+      sessionId,
+      questionId:     currentQ.questionId,
+      questionNumber: questionNum,
+      studentAnswer,
+      isCorrect,
+      hintUsed,
+      timeTaken,
+      status
+    }).catch(err => console.error('[saveAnswer]', err.message));
+
+    showNextButton();
+  }
+
+  // ── Outcome panel ─────────────────────────────────────────────────────────
+  function renderOutcome(result) {
+    const solEl   = el.querySelector('#solution-area');
+    const correct = result === 'correct';
+    const skipped = result === 'skipped';
+    const timeout = result === 'timeout';
+
+    const label = correct
+      ? 'Correct!'
+      : `${skipped ? 'Skipped' : timeout ? "Time's up" : 'Incorrect'} — Correct answer: ${currentQ.correctAnswer}`;
+
+    solEl.innerHTML = `
+      <div class="${correct ? 'solution-panel' : 'solution-panel wrong-panel'}">
+        <div style="font-weight:700;margin-bottom:10px">${label}</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button id="show-solution-btn" class="btn btn-secondary btn-sm" style="padding:7px 18px">
+            Show Solution
+          </button>
+          <button id="tts-btn" class="btn btn-secondary btn-sm" style="padding:7px 18px">
+            Read Aloud
+          </button>
+        </div>
+        <div id="tts-status" style="font-size:.78rem;color:var(--text-muted);margin-top:8px"></div>
+        <div id="solution-detail" style="margin-top:14px;display:none"></div>
+      </div>`;
+
+    el.querySelector('#show-solution-btn').addEventListener('click', () => {
+      const detail = el.querySelector('#solution-detail');
+      const steps  = currentQ.solutionSteps || 'No solution steps available.';
+      detail.innerHTML = `
+        <div style="padding:14px;border-radius:8px;background:var(--bg-card2);border:1px solid var(--border)">
+          ${steps.split('\n').filter(l => l.trim()).map(line => {
+            if (line.startsWith('Step')) {
+              const c = line.indexOf(':');
+              if (c > 0)
+                return `<div style="margin-bottom:6px"><strong>${line.slice(0,c+1)}</strong>${line.slice(c+1)}</div>`;
+            }
+            return `<div style="margin-bottom:6px">${line}</div>`;
+          }).join('')}
+        </div>`;
+      detail.style.display = 'block';
+      el.querySelector('#show-solution-btn').style.display = 'none';
+    });
+
+    el.querySelector('#tts-btn').addEventListener('click', () => {
+      if (window.speechSynthesis?.speaking) {
+        ttsStop();
+        el.querySelector('#tts-status').textContent = 'Stopped.';
+      } else {
+        const text = `${label}. ${(currentQ.solutionSteps || '').replace(/\n/g, '. ')}`;
+        el.querySelector('#tts-status').textContent = 'Reading aloud...';
+        ttsSpeak(text);
+        if (ttsUtterance) {
+          ttsUtterance.onend = () => {
+            updateTtsBtn(false);
+            const st = el.querySelector('#tts-status');
+            if (st) st.textContent = 'Done.';
+          };
+        }
+      }
+    });
+  }
+
+  // ── Quit ──────────────────────────────────────────────────────────────────
+  function handleQuit() {
+    if (!sessionId) return;
+    if (!window.confirm('Are you sure you want to quit? Your progress will be saved.')) return;
+    stopTimer();
+    ttsStop();
+    hideActionRow();
+    el.querySelectorAll('.option-btn, #typein-input, #submit-typein').forEach(b => b.disabled = true);
+    const qBtn = el.querySelector('#quit-btn');
+    if (qBtn) { qBtn.disabled = true; qBtn.textContent = 'Quitting...'; }
+    doFinish();
+  }
+
+  // ── Next / Finish button ──────────────────────────────────────────────────
+  function showNextButton() {
+    const area = el.querySelector('#next-area');
+    const btn  = el.querySelector('#next-btn');
+    area.style.display = 'block';
+    const fresh = btn.cloneNode(true);
+    btn.parentNode.replaceChild(fresh, btn);
+    if (questionNum >= TOTAL_QUESTIONS) {
+      fresh.querySelector('#next-btn-text').textContent = 'See Results';
+      fresh.addEventListener('click', finishGame);
+    } else {
+      fresh.querySelector('#next-btn-text').textContent = 'Next Question';
+      fresh.addEventListener('click', loadQuestion);
+    }
+  }
+
+  // ── Timer ─────────────────────────────────────────────────────────────────
+  function startTimer() {
+    stopTimer();
+    const badge = el.querySelector('#timer-badge');
+    timerInterval = setInterval(() => {
+      timeLeft--;
+      badge.textContent = `${timeLeft}s`;
+      badge.classList.toggle('warning', timeLeft <= 8);
+      if (timeLeft <= 0) {
+        stopTimer();
+        if (!answered) {
+          answered = true;
+          hideActionRow();
+          skippedCount++;
+          responses++;
+          el.querySelectorAll('.option-btn, #typein-input, #submit-typein').forEach(b => b.disabled = true);
+          totalTime += timerSeconds();
+          renderOutcome('timeout');
+          API.saveAnswer({
+            sessionId,
+            questionId:     currentQ.questionId,
+            questionNumber: questionNum,
+            studentAnswer:  'TIME_UP',
+            isCorrect:      false,
+            hintUsed,
+            timeTaken:      timerSeconds(),
+            status:         'timeout'
+          }).catch(err => console.error('[saveAnswer/timeout]', err.message));
+          showNextButton();
+        }
+      }
+    }, 1000);
+  }
+
+  function stopTimer()    { clearInterval(timerInterval); }
+  function hideActionRow(){ const r = el.querySelector('#action-row'); if (r) r.style.display = 'none'; }
+
+  function updateProgress() {
+    el.querySelector('#progress-bar').style.width = `${((questionNum-1)/TOTAL_QUESTIONS)*100}%`;
+    el.querySelector('#q-counter').textContent    = `${questionNum} / ${TOTAL_QUESTIONS}`;
+  }
+
+  async function finishGame() {
+    stopTimer();
+    ttsStop();
+    el.querySelector('#progress-bar').style.width = '100%';
+    await doFinish();
+  }
+
+  async function doFinish() {
+    try {
+      await API.finishSession({
+        sessionId,
+        score,
+        totalQuestions: TOTAL_QUESTIONS,
+        correctAnswers: correctCount,
+        skippedAnswers: skippedCount,
+        hintsUsed,
+        timeTaken:      totalTime
+      });
+    } catch (err) {
+      console.error('[finishSession]', err.message);
+    }
+    App.showPage('summary', {
+      mode, level, score, correctCount,
+      totalQuestions: TOTAL_QUESTIONS,
+      timeTaken:      totalTime,
+      skippedCount,
+      unanswered:     Math.max(0, TOTAL_QUESTIONS - responses),
+      answeredCount:  Math.max(0, responses - skippedCount),
+      sessionId
+    });
+  }
+};
