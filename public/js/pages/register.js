@@ -19,7 +19,7 @@ Pages.register = function(el) {
             <input type="text" id="reg-username" placeholder="Choose a username" autocomplete="username" />
           </div>
           <div>
-            <label for="reg-email">Email (optional)</label>
+            <label for="reg-email">Email</label>
             <input type="email" id="reg-email" placeholder="your@email.com" />
           </div>
           <div>
