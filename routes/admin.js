@@ -28,21 +28,6 @@ async function logActivity(actorId, actionType, description, targetUserId) {
 // ── GET /api/admin/stats ───────────────────────────────────────────────────
 router.get('/stats', async (req, res) => {
   try {
-<<<<<<< HEAD
-    const userRows      = await pool.query('SELECT COUNT(*) AS totalUsers FROM [user]');
-    const sessionRows   = await pool.query('SELECT COUNT(*) AS totalSessions FROM session');
-    const todayRows     = await pool.query("SELECT COUNT(DISTINCT user_id) AS activeToday FROM session WHERE CAST(played_at AS DATE) = CAST(GETDATE() AS DATE)");
-    const todaySessRows = await pool.query("SELECT COUNT(*) AS sessionsToday FROM session WHERE CAST(played_at AS DATE) = CAST(GETDATE() AS DATE)");
-    const accRows       = await pool.query("SELECT AVG(CASE WHEN total_questions > 0 THEN CAST(correct_answers AS FLOAT)/total_questions*100 ELSE NULL END) AS avgAcc FROM session");
-    const modeCounts    = await pool.query("SELECT mode, COUNT(*) AS cnt FROM session GROUP BY mode");
-
-    // sqlcmd returns arrays — grab first row of each result set
-    const userRow      = userRows[0]      || {};
-    const sessionRow   = sessionRows[0]   || {};
-    const todayRow     = todayRows[0]     || {};
-    const todaySessRow = todaySessRows[0] || {};
-    const accRow       = accRows[0]       || {};
-=======
     const userRows      = await pool.query('SELECT COUNT(*) AS totalUsers FROM users');
     const sessionRows   = await pool.query('SELECT COUNT(*) AS totalSessions FROM sessions WHERE completed=1');
     const todayRows     = await pool.query("SELECT COUNT(DISTINCT user_id) AS activeToday FROM sessions WHERE completed=1 AND CAST(played_at AS DATE)=CAST(GETDATE() AS DATE)");
@@ -51,7 +36,6 @@ router.get('/stats', async (req, res) => {
     const modeCounts    = await pool.query("SELECT mode, COUNT(*) AS cnt FROM sessions WHERE completed=1 GROUP BY mode");
     const hintRows      = await pool.query("SELECT SUM(hints_used) AS totalHints FROM sessions WHERE completed=1");
     const qRows         = await pool.query("SELECT COUNT(*) AS totalQ FROM questions");
->>>>>>> eb0f918ab16e285c80b4089056cda86dc27cd092
 
     const modeStats = {};
     modeCounts.forEach(r => { modeStats[toStr(r.mode)] = toInt(r.cnt); });
@@ -77,7 +61,7 @@ router.get('/users/recent', async (req, res) => {
   const limit = toInt(req.query.limit) || 5;
   try {
     const rows = await pool.query(
-      `SELECT TOP ${limit} user_id, username, full_name, role, created_at FROM [user] ORDER BY created_at DESC`
+      `SELECT TOP ${limit} user_id, username, full_name, role, created_at FROM users ORDER BY created_at DESC`
     );
     res.json(rows.map(r => ({
       user_id:    toStr(r.user_id),
@@ -96,9 +80,6 @@ router.get('/users/recent', async (req, res) => {
 router.get('/users', async (req, res) => {
   try {
     const rows = await pool.query(
-<<<<<<< HEAD
-      'SELECT user_id, username, full_name, email, role, last_login, created_at FROM [user] ORDER BY created_at DESC'
-=======
       `SELECT u.user_id, u.username, u.full_name, u.email, u.role, u.is_active,
               u.last_login, u.created_at,
               ISNULL(ps.total_sessions,0) AS total_sessions,
@@ -107,7 +88,6 @@ router.get('/users', async (req, res) => {
        FROM users u
        LEFT JOIN performance_summary ps ON ps.user_id = u.user_id
        ORDER BY u.created_at DESC`
->>>>>>> eb0f918ab16e285c80b4089056cda86dc27cd092
     );
     res.json(rows.map(r => ({
       user_id:       toStr(r.user_id),
@@ -134,13 +114,9 @@ router.post('/users/role', async (req, res) => {
   if (!['student','educator','admin'].includes(role))
     return res.status(400).json({ error: 'Invalid role.' });
   try {
-<<<<<<< HEAD
-    await pool.query('UPDATE [user] SET role = ? WHERE user_id = ?', [role, userId]);
-=======
     await pool.query('UPDATE users SET role=? WHERE user_id=?', [role, userId]);
     await logActivity(req.session.user.user_id, 'ROLE_CHANGE',
       `Changed user ${userId} role to ${role}`, userId);
->>>>>>> eb0f918ab16e285c80b4089056cda86dc27cd092
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Could not update role.' });
@@ -153,16 +129,10 @@ router.post('/users/delete', async (req, res) => {
   if (toInt(userId) === toInt(req.session.user.user_id))
     return res.status(400).json({ error: 'You cannot delete your own account.' });
   try {
-<<<<<<< HEAD
-    await pool.query('DELETE FROM answer WHERE session_id IN (SELECT session_id FROM session WHERE user_id = ?)', [userId]);
-    await pool.query('DELETE FROM session WHERE user_id = ?', [userId]);
-    await pool.query('DELETE FROM [user] WHERE user_id = ?', [userId]);
-=======
     await logActivity(req.session.user.user_id, 'USER_DELETE',
       `Deleted user_id ${userId}`, userId);
     // Cascade deletes handle sessions, user_answers, performance_summary, notifications
     await pool.query('DELETE FROM users WHERE user_id=?', [userId]);
->>>>>>> eb0f918ab16e285c80b4089056cda86dc27cd092
     res.json({ success: true });
   } catch (err) {
     console.error('[admin] delete user error:', err.message);
@@ -174,20 +144,12 @@ router.post('/users/delete', async (req, res) => {
 router.get('/activity', async (req, res) => {
   try {
     const rows = await pool.query(`
-<<<<<<< HEAD
-      SELECT TOP 10
-        s.session_id, u.full_name, u.username, s.mode, s.played_at AS created_at
-      FROM session s
-      JOIN [user] u ON u.user_id = s.user_id
-      ORDER BY s.played_at DESC
-=======
       SELECT TOP 30
         al.log_id, al.action_type, al.description, al.logged_at,
         u.full_name, u.username
       FROM admin_activity_log al
       JOIN users u ON u.user_id = al.actor_id
       ORDER BY al.logged_at DESC
->>>>>>> eb0f918ab16e285c80b4089056cda86dc27cd092
     `);
     res.json(rows.map(r => ({
       log_id:      toStr(r.log_id),
@@ -208,13 +170,8 @@ router.get('/accuracy-by-mode', async (req, res) => {
   try {
     const rows = await pool.query(`
       SELECT mode,
-<<<<<<< HEAD
-        AVG(CASE WHEN total_questions > 0 THEN CAST(correct_answers AS FLOAT)/total_questions*100 ELSE NULL END) AS avg_acc
-      FROM session
-=======
         AVG(CASE WHEN total_questions>0 THEN CAST(correct_answers AS FLOAT)/total_questions*100 ELSE NULL END) AS avg_acc
       FROM sessions WHERE completed=1
->>>>>>> eb0f918ab16e285c80b4089056cda86dc27cd092
       GROUP BY mode
     `);
     const result = {};
@@ -235,14 +192,9 @@ router.get('/sessions', async (req, res) => {
         s.score, s.total_questions, s.correct_answers, s.skipped_answers,
         s.hints_used, s.time_taken_seconds, s.played_at,
         u.username, u.full_name
-<<<<<<< HEAD
-      FROM session s
-      JOIN [user] u ON u.user_id = s.user_id
-=======
       FROM sessions s
       JOIN users u ON u.user_id = s.user_id
       WHERE s.completed=1
->>>>>>> eb0f918ab16e285c80b4089056cda86dc27cd092
       ORDER BY s.played_at DESC
     `);
     res.json(rows.map(r => ({
@@ -269,12 +221,6 @@ router.get('/sessions', async (req, res) => {
 router.get('/leaderboard', async (req, res) => {
   try {
     const rows = await pool.query(`
-<<<<<<< HEAD
-      SELECT s.session_id, u.username, u.full_name, s.mode, s.difficulty,
-             s.score, s.total_questions, s.correct_answers, s.time_taken_seconds, s.played_at
-      FROM session s JOIN [user] u ON u.user_id = s.user_id
-      ORDER BY s.played_at DESC
-=======
       SELECT TOP 20
         ls.rank_position, ls.total_score, ls.total_sessions, ls.avg_accuracy, ls.snapshot_date,
         u.username, u.full_name
@@ -282,7 +228,6 @@ router.get('/leaderboard', async (req, res) => {
       JOIN users u ON u.user_id = ls.user_id
       WHERE ls.snapshot_date = CAST(GETDATE() AS DATE)
       ORDER BY ls.rank_position ASC
->>>>>>> eb0f918ab16e285c80b4089056cda86dc27cd092
     `);
     res.json(rows.map(r => ({
       rank:           toInt(r.rank_position),
@@ -301,28 +246,6 @@ router.get('/leaderboard', async (req, res) => {
 // ── GET /api/admin/performance ──────────────────────────────────────────────
 router.get('/performance', async (req, res) => {
   try {
-<<<<<<< HEAD
-    const rows = await pool.query('SELECT user_id, username, full_name, email, role, last_login, created_at FROM [user] ORDER BY created_at DESC');
-
-    res.setHeader('Content-Type', 'application/pdf');
-    res.setHeader('Content-Disposition', 'attachment; filename="users.pdf"');
-
-    const doc = new PDFDocument({ margin: 36, size: 'A4' });
-    doc.pipe(res);
-    doc.fontSize(18).text('User List Report', { underline: true });
-    doc.moveDown(0.5);
-    doc.fontSize(12).text(`Generated: ${new Date().toLocaleString()}`);
-    doc.moveDown(0.75);
-    drawTable(doc, [
-      { key: 'user_id', label: 'User ID', width: 60 },
-      { key: 'username', label: 'Username', width: 90 },
-      { key: 'full_name', label: 'Full Name', width: 140 },
-      { key: 'email', label: 'Email', width: 140 },
-      { key: 'role', label: 'Role', width: 60 },
-      { key: 'last_login', label: 'Last Login', width: 120 }
-    ], rows);
-    doc.end();
-=======
     const rows = await pool.query(`
       SELECT u.user_id, u.username, u.full_name,
              ps.total_sessions, ps.total_score, ps.average_score,
@@ -342,7 +265,6 @@ router.get('/performance', async (req, res) => {
       best_score:       toInt(r.best_score),
       last_played:      toStr(r.last_played),
     })));
->>>>>>> eb0f918ab16e285c80b4089056cda86dc27cd092
   } catch (err) {
     res.status(500).json({ error: 'Could not fetch performance.' });
   }
@@ -354,13 +276,8 @@ router.get('/questions', async (req, res) => {
   if (!mode || !level) return res.status(400).json({ error: 'mode and level required.' });
   try {
     const rows = await pool.query(
-<<<<<<< HEAD
-      'SELECT * FROM custom_question WHERE mode = ? AND level = ? ORDER BY created_at DESC',
-      [mode, parseInt(level)]
-=======
       'SELECT * FROM custom_questions WHERE mode=? AND level=? ORDER BY created_at DESC',
       [mode, toInt(level)]
->>>>>>> eb0f918ab16e285c80b4089056cda86dc27cd092
     );
     res.json(rows);
   } catch (err) {
@@ -375,13 +292,8 @@ router.post('/questions', async (req, res) => {
     return res.status(400).json({ error: 'mode, level, question and answer are required.' });
   try {
     await pool.query(
-<<<<<<< HEAD
-      'INSERT INTO custom_question (mode, level, question_text, correct_answer, wrong_options, solution_steps, created_by) VALUES (?,?,?,?,?,?,?)',
-      [mode, parseInt(level), question, answer, wrong || '', solution || '', req.session.user.user_id]
-=======
       'INSERT INTO custom_questions (mode, level, question_text, correct_answer, wrong_options, solution_steps, hint_text, created_by) VALUES (?,?,?,?,?,?,?,?)',
       [mode, toInt(level), question, answer, wrong || '', solution || '', hint || '', req.session.user.user_id]
->>>>>>> eb0f918ab16e285c80b4089056cda86dc27cd092
     );
     await logActivity(req.session.user.user_id, 'ADD_QUESTION',
       `Added custom question for ${mode} L${level}`, null);
@@ -396,13 +308,9 @@ router.post('/questions', async (req, res) => {
 router.post('/questions/delete', async (req, res) => {
   const { questionId } = req.body;
   try {
-<<<<<<< HEAD
-    await pool.query('DELETE FROM custom_question WHERE question_id = ?', [questionId]);
-=======
     await pool.query('DELETE FROM custom_questions WHERE question_id=?', [questionId]);
     await logActivity(req.session.user.user_id, 'DELETE_QUESTION',
       `Deleted custom question ${questionId}`, null);
->>>>>>> eb0f918ab16e285c80b4089056cda86dc27cd092
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Could not delete question.' });

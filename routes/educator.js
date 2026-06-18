@@ -85,13 +85,13 @@ router.get('/stats', async (req, res) => {
     const placeholders = ids.map(() => '?').join(',');
 
     const activeRows = await pool.query(
-      'SELECT COUNT(DISTINCT user_id) AS active FROM session' +
+      'SELECT COUNT(DISTINCT user_id) AS active FROM sessions' +
       ' WHERE user_id IN (' + placeholders + ')' +
       ' AND played_at >= DATEADD(day, -7, GETDATE())',
       ids
     );
     const scoreRows = await pool.query(
-      'SELECT AVG(CAST(score AS FLOAT)) AS avgScore FROM session' +
+      'SELECT AVG(CAST(score AS FLOAT)) AS avgScore FROM sessions' +
       ' WHERE user_id IN (' + placeholders + ')',
       ids
     );
@@ -99,7 +99,7 @@ router.get('/stats', async (req, res) => {
     const modeRows = await pool.query(
       'SELECT s.mode AS mode_name,' +
       ' AVG(CASE WHEN s.total_questions > 0 THEN CAST(s.correct_answers AS FLOAT)/s.total_questions*100 ELSE NULL END) AS avg_acc' +
-      ' FROM session s' +
+      ' FROM sessions s' +
       ' INNER JOIN game_mode gm ON gm.mode_name = s.mode' +
       ' WHERE s.user_id IN (' + placeholders + ')' +
       ' AND s.played_at >= DATEADD(day, -7, GETDATE())' +
@@ -141,7 +141,7 @@ router.get('/students', async (req, res) => {
       'SELECT user_id, COUNT(*) AS total_sessions,' +
       ' AVG(CASE WHEN total_questions > 0 THEN CAST(correct_answers AS FLOAT)/total_questions*100 ELSE NULL END) AS avg_accuracy,' +
       ' MAX(played_at) AS last_active' +
-      ' FROM session WHERE user_id IN (' + placeholders + ') GROUP BY user_id',
+      ' FROM sessions WHERE user_id IN (' + placeholders + ') GROUP BY user_id',
       ids
     );
 
@@ -149,7 +149,7 @@ router.get('/students', async (req, res) => {
     stats.forEach(function(s) { statMap[String(s.user_id)] = s; });
 
     const bestModes = await pool.query(
-      'SELECT user_id, mode, COUNT(*) AS cnt FROM session' +
+      'SELECT user_id, mode, COUNT(*) AS cnt FROM sessions' +
       ' WHERE user_id IN (' + placeholders + ') GROUP BY user_id, mode',
       ids
     );
@@ -202,7 +202,7 @@ router.get('/sessions', async (req, res) => {
       ' s.session_id, s.user_id, s.mode, s.difficulty,' +
       ' s.score, s.total_questions, s.correct_answers, s.time_taken_seconds, s.played_at,' +
       ' u.username, u.full_name' +
-      ' FROM session s JOIN [user] u ON u.user_id = s.user_id' +
+      ' FROM sessions s JOIN users u ON u.user_id = s.user_id' +
       ' WHERE s.user_id IN (' + placeholders + ') ORDER BY s.played_at DESC',
       ids
     );
@@ -237,7 +237,7 @@ router.get('/export/class', async (req, res) => {
     const rows = await pool.query(
       'SELECT s.session_id, u.username, u.full_name, s.mode, s.difficulty,' +
       ' s.score, s.total_questions, s.correct_answers, s.time_taken_seconds, s.played_at' +
-      ' FROM session s JOIN [user] u ON u.user_id = s.user_id' +
+      ' FROM sessions s JOIN users u ON u.user_id = s.user_id' +
       ' WHERE s.user_id IN (' + placeholders + ') ORDER BY s.played_at DESC',
       ids
     );
@@ -326,21 +326,12 @@ router.get('/export/students', async (req, res) => {
 // Returns all students (educator_student_map table has been removed).
 // ─────────────────────────────────────────────────────────────────────────────
 async function getMyStudents(eduId) {
-<<<<<<< HEAD
-  // educator_student_map was removed from the schema; return all students.
-  try {
-    return await pool.query(
-      "SELECT user_id, username, full_name, email FROM [user] WHERE role = 'student' ORDER BY full_name"
-    );
-  } catch (_err) {
-=======
   // Return all students; educator_student_map table has been removed.
   try {
     return await pool.query(
       "SELECT user_id, username, full_name, email FROM users WHERE role = 'student' ORDER BY full_name"
     );
   } catch {
->>>>>>> eb0f918ab16e285c80b4089056cda86dc27cd092
     return [];
   }
 }
