@@ -106,7 +106,6 @@ Pages.sessionDetails = async function(el, { sessionId } = {}) {
                 <th>Question</th>
                 <th>Your Answer</th>
                 <th>Correct Answer</th>
-                <th>Hint Used</th>
                 <th>Time (s)</th>
               </tr></thead>
               <tbody>
@@ -117,7 +116,6 @@ Pages.sessionDetails = async function(el, { sessionId } = {}) {
                     <td style="max-width:340px;white-space:normal">${a.question_text}</td>
                     <td>${studentAns}</td>
                     <td style="color:var(--success)">${a.correct_answer}</td>
-                    <td>${a.hint_used ? 'Yes' : 'No'}</td>
                     <td>${a.time_taken_seconds || 0}</td>
                   </tr>`;
                 }).join('')}
