@@ -323,29 +323,16 @@ router.get('/export/students', async (req, res) => {
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Helper: get students assigned to this educator.
-// Queries educator_student_map (ERD-aligned table name).
-// Falls back to all students if no assignments exist yet.
+// Returns all students (educator_student_map table has been removed).
 // ─────────────────────────────────────────────────────────────────────────────
 async function getMyStudents(eduId) {
+  // Return all students; educator_student_map table has been removed.
   try {
-    const rows = await pool.query(
-      'SELECT u.user_id, u.username, u.full_name, u.email' +
-      ' FROM educator_student_map esm JOIN users u ON u.user_id = esm.student_id' +
-      ' WHERE esm.educator_id = ?',
-      [eduId]
+    return await pool.query(
+      "SELECT user_id, username, full_name, email FROM users WHERE role = 'student' ORDER BY full_name"
     );
-    // If this educator has assigned students, return them.
-    if (rows && rows.length > 0) return rows;
-    throw new Error('no assigned students');
-  } catch (_err) {
-    // Fall back: return all students so the dashboard is never empty.
-    try {
-      return await pool.query(
-        "SELECT user_id, username, full_name, email FROM users WHERE role = 'student' ORDER BY full_name"
-      );
-    } catch (_err2) {
-      return [];
-    }
+  } catch {
+    return [];
   }
 }
 
