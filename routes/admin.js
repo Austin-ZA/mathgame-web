@@ -78,12 +78,12 @@ function drawTable(doc, columns, rows, opts = {}) {
 // ── GET /api/admin/stats ───────────────────────────────────────────────────
 router.get('/stats', async (req, res) => {
   try {
-    const userRows      = await pool.query('SELECT COUNT(*) AS totalUsers FROM users');
-    const sessionRows   = await pool.query('SELECT COUNT(*) AS totalSessions FROM sessions');
-    const todayRows     = await pool.query("SELECT COUNT(DISTINCT user_id) AS activeToday FROM sessions WHERE CAST(played_at AS DATE) = CAST(GETDATE() AS DATE)");
-    const todaySessRows = await pool.query("SELECT COUNT(*) AS sessionsToday FROM sessions WHERE CAST(played_at AS DATE) = CAST(GETDATE() AS DATE)");
-    const accRows       = await pool.query("SELECT AVG(CASE WHEN total_questions > 0 THEN CAST(correct_answers AS FLOAT)/total_questions*100 ELSE NULL END) AS avgAcc FROM sessions");
-    const modeCounts    = await pool.query("SELECT mode, COUNT(*) AS cnt FROM sessions GROUP BY mode");
+    const userRows      = await pool.query('SELECT COUNT(*) AS totalUsers FROM [user]');
+    const sessionRows   = await pool.query('SELECT COUNT(*) AS totalSessions FROM session');
+    const todayRows     = await pool.query("SELECT COUNT(DISTINCT user_id) AS activeToday FROM session WHERE CAST(played_at AS DATE) = CAST(GETDATE() AS DATE)");
+    const todaySessRows = await pool.query("SELECT COUNT(*) AS sessionsToday FROM session WHERE CAST(played_at AS DATE) = CAST(GETDATE() AS DATE)");
+    const accRows       = await pool.query("SELECT AVG(CASE WHEN total_questions > 0 THEN CAST(correct_answers AS FLOAT)/total_questions*100 ELSE NULL END) AS avgAcc FROM session");
+    const modeCounts    = await pool.query("SELECT mode, COUNT(*) AS cnt FROM session GROUP BY mode");
 
     // sqlcmd returns arrays — grab first row of each result set
     const userRow      = userRows[0]      || {};
@@ -114,7 +114,7 @@ router.get('/users/recent', async (req, res) => {
   const limit = parseInt(req.query.limit) || 5;
   try {
     const rows = await pool.query(
-      `SELECT TOP ${limit} user_id, username, full_name, role, created_at FROM users ORDER BY created_at DESC`
+      `SELECT TOP ${limit} user_id, username, full_name, role, created_at FROM [user] ORDER BY created_at DESC`
     );
     res.json(rows.map(r => ({
       user_id:    toStr(r.user_id),
@@ -134,7 +134,7 @@ router.get('/users/recent', async (req, res) => {
 router.get('/users', async (req, res) => {
   try {
     const rows = await pool.query(
-      'SELECT user_id, username, full_name, email, role, last_login, created_at FROM users ORDER BY created_at DESC'
+      'SELECT user_id, username, full_name, email, role, last_login, created_at FROM [user] ORDER BY created_at DESC'
     );
     res.json(rows.map(r => ({
       user_id:    toStr(r.user_id),
@@ -157,7 +157,7 @@ router.post('/users/role', async (req, res) => {
   if (!['student','educator','admin'].includes(role))
     return res.status(400).json({ error: 'Invalid role.' });
   try {
-    await pool.query('UPDATE users SET role = ? WHERE user_id = ?', [role, userId]);
+    await pool.query('UPDATE [user] SET role = ? WHERE user_id = ?', [role, userId]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Could not update role.' });
@@ -170,9 +170,9 @@ router.post('/users/delete', async (req, res) => {
   if (parseInt(userId) === req.session.user.user_id)
     return res.status(400).json({ error: 'You cannot delete your own account.' });
   try {
-    await pool.query('DELETE FROM answers WHERE session_id IN (SELECT session_id FROM sessions WHERE user_id = ?)', [userId]);
-    await pool.query('DELETE FROM sessions WHERE user_id = ?', [userId]);
-    await pool.query('DELETE FROM users WHERE user_id = ?', [userId]);
+    await pool.query('DELETE FROM answer WHERE session_id IN (SELECT session_id FROM session WHERE user_id = ?)', [userId]);
+    await pool.query('DELETE FROM session WHERE user_id = ?', [userId]);
+    await pool.query('DELETE FROM [user] WHERE user_id = ?', [userId]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Could not delete user.' });
@@ -185,8 +185,8 @@ router.get('/activity', async (req, res) => {
     const rows = await pool.query(`
       SELECT TOP 10
         s.session_id, u.full_name, u.username, s.mode, s.played_at AS created_at
-      FROM sessions s
-      JOIN users u ON u.user_id = s.user_id
+      FROM session s
+      JOIN [user] u ON u.user_id = s.user_id
       ORDER BY s.played_at DESC
     `);
     res.json(rows.map(r => ({
@@ -210,7 +210,7 @@ router.get('/accuracy-by-mode', async (req, res) => {
     const rows = await pool.query(`
       SELECT mode,
         AVG(CASE WHEN total_questions > 0 THEN CAST(correct_answers AS FLOAT)/total_questions*100 ELSE NULL END) AS avg_acc
-      FROM sessions
+      FROM session
       GROUP BY mode
     `);
     const result = {};
@@ -230,8 +230,8 @@ router.get('/sessions', async (req, res) => {
         s.session_id, s.user_id, s.mode, s.difficulty,
         s.score, s.total_questions, s.correct_answers, s.time_taken_seconds, s.played_at,
         u.username, u.full_name
-      FROM sessions s
-      JOIN users u ON u.user_id = s.user_id
+      FROM session s
+      JOIN [user] u ON u.user_id = s.user_id
       ORDER BY s.played_at DESC
     `);
     res.json(rows.map(r => ({
@@ -258,7 +258,7 @@ router.get('/export/sessions', async (req, res) => {
     const rows = await pool.query(`
       SELECT s.session_id, u.username, u.full_name, s.mode, s.difficulty,
              s.score, s.total_questions, s.correct_answers, s.time_taken_seconds, s.played_at
-      FROM sessions s JOIN users u ON u.user_id = s.user_id
+      FROM session s JOIN [user] u ON u.user_id = s.user_id
       ORDER BY s.played_at DESC
     `);
 
@@ -290,7 +290,7 @@ router.get('/export/sessions', async (req, res) => {
 // ── GET /api/admin/export/users ─────────────────────────────────────────────
 router.get('/export/users', async (req, res) => {
   try {
-    const rows = await pool.query('SELECT user_id, username, full_name, email, role, last_login, created_at FROM users ORDER BY created_at DESC');
+    const rows = await pool.query('SELECT user_id, username, full_name, email, role, last_login, created_at FROM [user] ORDER BY created_at DESC');
 
     res.setHeader('Content-Type', 'application/pdf');
     res.setHeader('Content-Disposition', 'attachment; filename="users.pdf"');
@@ -321,7 +321,7 @@ router.get('/questions', async (req, res) => {
   if (!mode || !level) return res.status(400).json({ error: 'mode and level required.' });
   try {
     const rows = await pool.query(
-      'SELECT * FROM custom_questions WHERE mode = ? AND level = ? ORDER BY created_at DESC',
+      'SELECT * FROM custom_question WHERE mode = ? AND level = ? ORDER BY created_at DESC',
       [mode, parseInt(level)]
     );
     res.json(rows);
@@ -337,7 +337,7 @@ router.post('/questions', async (req, res) => {
     return res.status(400).json({ error: 'mode, level, question and answer are required.' });
   try {
     await pool.query(
-      'INSERT INTO custom_questions (mode, level, question_text, correct_answer, wrong_options, solution_steps, created_by) VALUES (?,?,?,?,?,?,?)',
+      'INSERT INTO custom_question (mode, level, question_text, correct_answer, wrong_options, solution_steps, created_by) VALUES (?,?,?,?,?,?,?)',
       [mode, parseInt(level), question, answer, wrong || '', solution || '', req.session.user.user_id]
     );
     res.json({ success: true });
@@ -351,7 +351,7 @@ router.post('/questions', async (req, res) => {
 router.post('/questions/delete', async (req, res) => {
   const { questionId } = req.body;
   try {
-    await pool.query('DELETE FROM custom_questions WHERE question_id = ?', [questionId]);
+    await pool.query('DELETE FROM custom_question WHERE question_id = ?', [questionId]);
     res.json({ success: true });
   } catch (err) {
     res.status(500).json({ error: 'Could not delete question.' });

@@ -21,7 +21,7 @@ router.post('/login', async (req, res) => {
     const hashedPassword = hashPassword(password);
 
     const rows = await pool.query(
-      'SELECT user_id, username, full_name, email, role, password_hash FROM users WHERE username = ?',
+      'SELECT user_id, username, full_name, email, role, password_hash FROM [user] WHERE username = ?',
       [username]
     );
 
@@ -36,7 +36,7 @@ router.post('/login', async (req, res) => {
     }
 
     // Update last_login
-    await pool.query('UPDATE users SET last_login = GETDATE() WHERE user_id = ?', [user.user_id]);
+    await pool.query('UPDATE [user] SET last_login = GETDATE() WHERE user_id = ?', [user.user_id]);
 
     // Store in session (remove password_hash from response)
     const { password_hash, ...userWithoutPassword } = user;
@@ -57,14 +57,14 @@ router.post('/register', async (req, res) => {
 
   try {
     // Check username taken
-    const existing = await pool.query('SELECT user_id FROM users WHERE username = ?', [username]);
+    const existing = await pool.query('SELECT user_id FROM [user] WHERE username = ?', [username]);
     if (existing.length > 0)
       return res.status(409).json({ error: 'Username already taken. Please choose another.' });
 
     const hashedPassword = hashPassword(password);
 
     await pool.query(
-      "INSERT INTO users (username, password_hash, full_name, email, role) VALUES (?, ?, ?, ?, 'student')",
+      "INSERT INTO [user] (username, password_hash, full_name, email, role) VALUES (?, ?, ?, ?, 'student')",
       [username, hashedPassword, fullName, email || null]
     );
 
@@ -87,7 +87,7 @@ router.post('/forgot-password', async (req, res) => {
     return res.status(400).json({ error: 'Username and new password are required.' });
 
   try {
-    const rows = await pool.query('SELECT user_id, email FROM users WHERE username = ?', [username]);
+    const rows = await pool.query('SELECT user_id, email FROM [user] WHERE username = ?', [username]);
     if (!rows || rows.length === 0)
       return res.status(404).json({ error: 'User not found.' });
 
@@ -96,7 +96,7 @@ router.post('/forgot-password', async (req, res) => {
       return res.status(400).json({ error: 'Email does not match our records.' });
 
     const hashedPassword = hashPassword(newPassword);
-    await pool.query('UPDATE users SET password_hash = ? WHERE user_id = ?', [hashedPassword, user.user_id]);
+    await pool.query('UPDATE [user] SET password_hash = ? WHERE user_id = ?', [hashedPassword, user.user_id]);
     res.json({ success: true });
   } catch (err) {
     console.error('[auth] Forgot password error:', err.message);

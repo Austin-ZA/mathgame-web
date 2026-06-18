@@ -27,7 +27,7 @@ router.post('/start', async (req, res) => {
   try {
     // FIX: Use single INSERT + LAST_INSERT_ID() for MySQL (was SCOPE_IDENTITY() for SQL Server)
     await pool.query(
-      'INSERT INTO sessions (user_id, mode, difficulty) VALUES (?, ?, ?)',
+      'INSERT INTO session (user_id, mode, difficulty) VALUES (?, ?, ?)',
       [req.session.user.user_id, mode, difficulty]
     );
     const idResult = await pool.query('SELECT LAST_INSERT_ID() as sessionId');
@@ -108,7 +108,7 @@ router.post('/finish', async (req, res) => {
 router.get('/history', async (req, res) => {
   try {
     const rows = await pool.query(
-      'SELECT * FROM sessions WHERE user_id = ? ORDER BY played_at DESC LIMIT 20',
+      'SELECT * FROM session WHERE user_id = ? ORDER BY played_at DESC LIMIT 20',
       [req.session.user.user_id]
     );
     res.json(rows);

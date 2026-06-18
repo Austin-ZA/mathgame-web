@@ -66,7 +66,7 @@ async function gatherStudentData(userId) {
                  ELSE NULL END)                                                           AS avg_accuracy,
         AVG(CAST(time_taken_seconds AS FLOAT))                                            AS avg_time_seconds,
         MAX(played_at)                                                                    AS last_played
-      FROM sessions
+      FROM session
       WHERE user_id = ?
     `, [userId]);
   } catch (e) { console.error('[coach] summaryRows error:', e.message); }
@@ -83,7 +83,7 @@ async function gatherStudentData(userId) {
                  ELSE NULL END)                                                           AS avg_accuracy,
         AVG(CAST(score AS FLOAT))                                                         AS avg_score,
         AVG(CAST(time_taken_seconds AS FLOAT))                                            AS avg_time
-      FROM sessions
+      FROM session
       WHERE user_id = ?
       GROUP BY mode
     `, [userId]);
@@ -99,7 +99,7 @@ async function gatherStudentData(userId) {
         AVG(CASE WHEN total_questions > 0
                  THEN CAST(correct_answers AS FLOAT) / total_questions * 100
                  ELSE NULL END)                                                           AS avg_accuracy
-      FROM sessions
+      FROM session
       WHERE user_id = ?
       GROUP BY difficulty
     `, [userId]);
@@ -117,8 +117,8 @@ async function gatherStudentData(userId) {
         s.mode,
         s.difficulty,
         a.time_taken_seconds
-      FROM answers a
-      JOIN sessions s ON s.session_id = a.session_id
+      FROM answer a
+      JOIN session s ON s.session_id = a.session_id
       WHERE s.user_id = ?
         AND a.is_correct = 0
       ORDER BY a.answer_id DESC
@@ -132,7 +132,7 @@ async function gatherStudentData(userId) {
       SELECT TOP 10
         mode, difficulty, score, correct_answers, total_questions,
         time_taken_seconds, played_at
-      FROM sessions
+      FROM session
       WHERE user_id = ?
       ORDER BY played_at DESC
     `, [userId]);
@@ -148,8 +148,8 @@ async function gatherStudentData(userId) {
         a.is_correct,
         s.mode,
         s.difficulty
-      FROM answers a
-      JOIN sessions s ON s.session_id = a.session_id
+      FROM answer a
+      JOIN session s ON s.session_id = a.session_id
       WHERE s.user_id = ?
       ORDER BY a.time_taken_seconds DESC
     `, [userId]);
